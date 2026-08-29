@@ -72,6 +72,7 @@
               <a class="link-btn" href="{{ url_for('voucher', payment_id=p.id) }}">Slip</a>
               {% if not p.paid %}
               <form method="POST" action="{{ url_for('mark_paid', payment_id=p.id) }}" class="inline-pay-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="number" name="paid_amount" min="1" max="{{ '%.0f'|format(p.remaining_amount) }}" step="1" value="{{ '%.0f'|format(p.remaining_amount) }}">
                 <button type="submit" class="btn-success-sm">Record</button>
               </form>

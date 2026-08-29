@@ -9,6 +9,7 @@
 <div class="panel" style="max-width:480px;">
   <div class="panel-header"><h2>Change Password</h2></div>
   <form method="POST" class="stack-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
       <label>Current Password</label>
       <input type="password" name="current_password" required>

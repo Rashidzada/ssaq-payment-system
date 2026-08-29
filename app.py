@@ -1,5 +1,7 @@
 import os
 import sqlite3
+import secrets
+import time
 from io import BytesIO
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -13,8 +15,100 @@ from werkzeug.security import generate_password_hash, check_password_hash
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "college.db")
 
+def get_secret_key():
+    env_key = os.environ.get("SECRET_KEY")
+    if env_key and env_key not in ("change-this-secret-key-in-production", "ssaq-secret-key-production-change-this"):
+        return env_key
+    key_path = os.path.join(BASE_DIR, ".secret_key")
+    if os.path.exists(key_path):
+        try:
+            with open(key_path, "r", encoding="utf-8") as f:
+                key = f.read().strip()
+                if key:
+                    return key
+        except Exception:
+            pass
+    new_key = secrets.token_hex(32)
+    try:
+        with open(key_path, "w", encoding="utf-8") as f:
+            f.write(new_key)
+    except Exception:
+        pass
+    return new_key
+
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "ssaq-secret-key-production-change-this")
+app.config.update(
+    SECRET_KEY=get_secret_key(),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER") or os.environ.get("HTTPS")),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+    MAX_CONTENT_LENGTH=16 * 1024 * 1024,  # Max 16MB file upload limit
+)
+
+# ----------------------------------------------------------------------
+# Rate Limiting & Anti-Brute-Force
+# ----------------------------------------------------------------------
+LOGIN_ATTEMPTS = {}  # ip -> {"count": int, "blocked_until": float, "last_attempt": float}
+
+def is_ip_rate_limited(ip):
+    now = time.time()
+    record = LOGIN_ATTEMPTS.get(ip)
+    if not record:
+        return False, 0
+    if record.get("blocked_until", 0) > now:
+        remaining = int(record["blocked_until"] - now)
+        return True, remaining
+    if now - record.get("last_attempt", 0) > 300:
+        LOGIN_ATTEMPTS.pop(ip, None)
+        return False, 0
+    return False, 0
+
+def record_failed_login(ip):
+    now = time.time()
+    record = LOGIN_ATTEMPTS.setdefault(ip, {"count": 0, "blocked_until": 0, "last_attempt": now})
+    record["count"] += 1
+    record["last_attempt"] = now
+    if record["count"] >= 5:
+        record["blocked_until"] = now + 300  # Lock out for 5 minutes after 5 failed attempts
+
+def record_successful_login(ip):
+    LOGIN_ATTEMPTS.pop(ip, None)
+
+def is_safe_redirect(url):
+    if not url:
+        return False
+    return url.startswith("/") and not url.startswith("//") and "\\" not in url
+
+# ----------------------------------------------------------------------
+# CSRF Protection & Security Headers
+# ----------------------------------------------------------------------
+def generate_csrf_token():
+    if "_csrf_token" not in session:
+        session["_csrf_token"] = secrets.token_hex(32)
+    return session["_csrf_token"]
+
+@app.context_processor
+def inject_csrf():
+    return {"csrf_token": generate_csrf_token}
+
+@app.before_request
+def csrf_protect():
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        token = request.form.get("csrf_token") or request.headers.get("X-CSRFToken")
+        expected_token = session.get("_csrf_token")
+        if not expected_token or not token or not secrets.compare_digest(token, expected_token):
+            flash("Security check failed (CSRF token invalid or expired). Please try again.", "error")
+            return redirect(request.referrer or url_for("dashboard"))
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
 
 # ----------------------------------------------------------------------
 # Academy & Admin / Developer contact shown in the app footer and on every slip
@@ -159,6 +253,13 @@ def login_required(view):
 def login():
     if session.get("admin_id"):
         return redirect(url_for("dashboard"))
+
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr).split(",")[0].strip()
+    is_limited, remaining_secs = is_ip_rate_limited(client_ip)
+    if is_limited:
+        flash(f"Too many failed login attempts. Please wait {remaining_secs} seconds before trying again.", "error")
+        return render_template("login.html", dev=dev_context()), 429
+
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
@@ -166,13 +267,25 @@ def login():
         row = db.execute("SELECT * FROM admin WHERE LOWER(username) = LOWER(?)", (username,)).fetchone()
         if not row and username.lower() in ["rashid", "rashid zada", "rashidzada", "admin"]:
             row = db.execute("SELECT * FROM admin LIMIT 1").fetchone()
+
         if row and check_password_hash(row["password_hash"], password):
+            csrf_token = session.get("_csrf_token")
+            session.clear()
+            if csrf_token:
+                session["_csrf_token"] = csrf_token
             session["admin_id"] = row["id"]
             session["admin_username"] = row["username"]
+            record_successful_login(client_ip)
             flash("Welcome back!", "success")
-            nxt = request.args.get("next") or url_for("dashboard")
+            nxt = request.args.get("next")
+            if not is_safe_redirect(nxt):
+                nxt = url_for("dashboard")
             return redirect(nxt)
+
+        record_failed_login(client_ip)
+        time.sleep(0.4)
         flash("Invalid username or password.", "error")
+
     return render_template("login.html", dev=dev_context())
 
 

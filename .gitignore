@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
 college.db
+test_*.db
 .env
+.secret_key
 venv/
 .venv/

@@ -25,6 +25,7 @@
     <p>Upload an <code>.xlsx</code> workbook with sheets named <b>Teachers</b>, <b>Courses</b>, and <b>Students</b>.
        New records are created and linked automatically, and fresh fee schedules are generated for each student.</p>
     <form method="POST" action="{{ url_for('import_excel') }}" enctype="multipart/form-data" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>Excel File (.xlsx)</label>
         <input type="file" name="excel_file" accept=".xlsx" required>

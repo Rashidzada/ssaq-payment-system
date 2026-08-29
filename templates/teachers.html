@@ -17,6 +17,7 @@
   <div class="panel">
     <div class="panel-header"><h2>Add New Teacher</h2></div>
     <form method="POST" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>Full Name</label>
         <input type="text" name="name" placeholder="e.g. Sir Ahmad Khan" required>
@@ -69,6 +70,7 @@
             <td>
               <a class="link-btn" href="{{ url_for('edit_teacher', teacher_id=t.id) }}">Edit</a>
               <form method="POST" action="{{ url_for('delete_teacher', teacher_id=t.id) }}" onsubmit="return confirm('Remove this teacher?');" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn-danger-sm">Delete</button>
               </form>
             </td>

@@ -37,6 +37,27 @@ function togglePrivacyMode() {
   applyPrivacyState(nextHideState);
 }
 
+function toggleMobileSidebar(show) {
+  const sidebar = document.getElementById('appSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+
+  if (typeof show === 'boolean') {
+    if (show) {
+      sidebar.classList.add('open');
+      if (backdrop) backdrop.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    } else {
+      sidebar.classList.remove('open');
+      if (backdrop) backdrop.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+  } else {
+    const isOpen = sidebar.classList.contains('open');
+    toggleMobileSidebar(!isOpen);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   // 1. Initialize Privacy Mode (Default: OFF / Hidden = true)
   const savedPref = localStorage.getItem('hideAmounts');
@@ -51,5 +72,13 @@ document.addEventListener('DOMContentLoaded', function () {
       setTimeout(function () { el.remove(); }, 400);
     }, 4000);
   });
+
+  // 3. Close mobile sidebar on pressing Escape key
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      toggleMobileSidebar(false);
+    }
+  });
 });
+
 

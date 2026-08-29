@@ -9,14 +9,32 @@
 </head>
 <body>
 {% if session.get('admin_id') %}
+<!-- Mobile Top Navigation Bar -->
+<div class="mobile-topbar">
+  <button id="mobileMenuBtn" class="mobile-menu-btn" onclick="toggleMobileSidebar(true)" aria-label="Open Navigation">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="mobile-brand">
+    <span class="brand-dot"></span>
+    <span class="mobile-brand-title">{{ dev.academy or dev.college }}</span>
+  </div>
+  <button class="privacy-btn mobile-privacy-btn" onclick="togglePrivacyMode()" title="Toggle Amount Visibility">
+    <span class="privacy-icon">👁️</span>
+  </button>
+</div>
+<div id="sidebarBackdrop" class="sidebar-backdrop" onclick="toggleMobileSidebar(false)"></div>
+
 <div class="app-shell">
-  <aside class="sidebar">
-    <div class="brand">
-      <span class="brand-dot"></span>
-      <div>
-        <div class="brand-title">{{ dev.academy or dev.college }}</div>
-        <div class="brand-sub">Fee Voucher System</div>
+  <aside class="sidebar" id="appSidebar">
+    <div class="sidebar-brand-row">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <div>
+          <div class="brand-title">{{ dev.academy or dev.college }}</div>
+          <div class="brand-sub">Fee Voucher System</div>
+        </div>
       </div>
+      <button class="sidebar-close-btn" onclick="toggleMobileSidebar(false)" aria-label="Close Navigation">✕</button>
     </div>
     <nav class="nav">
       <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">📊 Dashboard</a>

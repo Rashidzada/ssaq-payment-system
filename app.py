@@ -1059,6 +1059,8 @@ def settings():
 # Excel Export / Import
 # ----------------------------------------------------------------------
 @app.route("/data")
+@app.route("/data-tools")
+@app.route("/data_tools")
 @login_required
 def data_tools():
     return render_template("data_tools.html", dev=dev_context())

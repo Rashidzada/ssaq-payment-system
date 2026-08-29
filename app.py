@@ -1364,11 +1364,14 @@ def import_excel():
         flash(f"Could not read the Excel file: {e}", "error")
         return redirect(url_for("data_tools"))
 
-    teacher_map = {}   # old_id -> new_id / teacher_name -> new_id
-    course_map = {}     # old_id -> new_id / course_name -> new_id
-    counts = {"teachers": 0, "courses": 0, "students": 0}
+    teacher_map = {}       # old_id -> new_id / teacher_name -> new_id
+    course_map = {}        # old_id -> new_id / course_name -> new_id
+    student_map = {}       # old_id -> new_id
+    student_cand_map = {}  # candidate_no.lower() -> new_id
+    student_name_map = {}  # (name.lower(), father_name.lower()) -> new_id and name.lower() -> new_id
+    counts = {"teachers": 0, "courses": 0, "students": 0, "payments": 0}
 
-    # Teachers
+    # 1. Teachers
     if "Teachers" in wb.sheetnames:
         ws = wb["Teachers"]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
@@ -1377,10 +1380,11 @@ def import_excel():
                 continue
             old_id, name, phone, subject = (list(row) + [None] * 4)[:4]
             name = str(name).strip()
-            # Check existing teacher with exact name
             existing = db.execute("SELECT id FROM teachers WHERE LOWER(name) = LOWER(?)", (name,)).fetchone()
             if existing:
                 t_id = existing["id"]
+                db.execute("UPDATE teachers SET phone = ?, subject = ? WHERE id = ?",
+                           (str(phone or "").strip(), str(subject or "").strip(), t_id))
             else:
                 cur = db.execute(
                     "INSERT INTO teachers (name, phone, subject) VALUES (?, ?, ?)",
@@ -1396,7 +1400,7 @@ def import_excel():
             teacher_map[name.lower()] = t_id
         db.commit()
 
-    # Courses
+    # 2. Courses
     if "Courses" in wb.sheetnames:
         ws = wb["Courses"]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
@@ -1406,8 +1410,7 @@ def import_excel():
             padded = (list(row) + [None] * 10)[:10]
             old_id, name, teacher_ref, duration, fee, id_card_fee, dmc_fee, exam_fee, fund_fee = padded[:9]
             name = str(name).strip()
-            
-            # Resolve teacher ID from reference
+
             resolved_teacher_id = None
             if teacher_ref not in (None, "", "Unassigned", "-"):
                 try:
@@ -1418,6 +1421,13 @@ def import_excel():
             existing = db.execute("SELECT id FROM courses WHERE LOWER(name) = LOWER(?)", (name,)).fetchone()
             if existing:
                 c_id = existing["id"]
+                db.execute(
+                    """UPDATE courses SET duration = ?, fee = ?, id_card_fee = ?, dmc_fee = ?,
+                                          exam_fee = ?, fund_fee = ?, teacher_id = COALESCE(?, teacher_id)
+                       WHERE id = ?""",
+                    (str(duration or "").strip(), float(fee or 0), float(id_card_fee or 0),
+                     float(dmc_fee or 0), float(exam_fee or 0), float(fund_fee or 0), resolved_teacher_id, c_id)
+                )
             else:
                 cur = db.execute(
                     """INSERT INTO courses (name, duration, fee, id_card_fee, dmc_fee, exam_fee, fund_fee, teacher_id)
@@ -1435,16 +1445,23 @@ def import_excel():
             course_map[name.lower()] = c_id
         db.commit()
 
-    # Students (+ auto generate payment schedule for each)
+    # 3. Students
+    has_payments_sheet = "Payments" in wb.sheetnames
     if "Students" in wb.sheetnames:
         ws = wb["Students"]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
         for row in rows:
             if not row or not row[2] or str(row[0]).strip().upper() == "TOTAL":
                 continue
-            padded = (list(row) + [None] * 12)[:12]
+            padded = (list(row) + [None] * 14)[:14]
             (old_id, candidate_no, name, father_name, phone, course_ref,
-             teacher_ref, admission_date, installment_count, total_fee) = padded[:10]
+             teacher_ref, admission_date, installment_count, total_fee, total_payable, paid_amount) = padded[:12]
+
+            name = str(name).strip()
+            father_name_str = str(father_name or "").strip()
+            candidate_no_str = str(candidate_no or "").strip()
+            if candidate_no_str == "-":
+                candidate_no_str = ""
 
             resolved_course_id = None
             if course_ref not in (None, "", "Unassigned", "-"):
@@ -1460,28 +1477,140 @@ def import_excel():
                 except (ValueError, TypeError):
                     resolved_teacher_id = teacher_map.get(str(teacher_ref).strip().lower())
 
-            admission_date_str = str(admission_date)[:10] if admission_date else date.today().isoformat()
-            cur = db.execute(
-                """INSERT INTO students (candidate_no, name, father_name, phone, course_id, teacher_id,
-                                          total_fee, installment_count, admission_date)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (str(candidate_no or "").strip(), str(name).strip(), str(father_name or "").strip(),
-                 str(phone or "").strip(), resolved_course_id, resolved_teacher_id,
-                 float(total_fee or 0), int(installment_count or 1), admission_date_str),
-            )
-            new_student_id = cur.lastrowid
-            course = None
-            if resolved_course_id:
-                course = db.execute("SELECT * FROM courses WHERE id = ?", (resolved_course_id,)).fetchone()
-            create_payments_for_student(
-                db, new_student_id, float(total_fee or 0), int(installment_count or 1), course, admission_date_str
-            )
-            counts["students"] += 1
+            admission_date_str = str(admission_date)[:10] if admission_date and str(admission_date) != "-" else date.today().isoformat()
+
+            # Find or insert student
+            existing_student = None
+            if candidate_no_str:
+                existing_student = db.execute("SELECT id FROM students WHERE candidate_no = ?", (candidate_no_str,)).fetchone()
+            if not existing_student and name:
+                existing_student = db.execute(
+                    "SELECT id FROM students WHERE LOWER(name) = LOWER(?) AND LOWER(father_name) = LOWER(?)",
+                    (name, father_name_str)
+                ).fetchone()
+
+            if existing_student:
+                s_id = existing_student["id"]
+                db.execute(
+                    """UPDATE students SET candidate_no = ?, name = ?, father_name = ?, phone = ?,
+                                          course_id = COALESCE(?, course_id),
+                                          teacher_id = COALESCE(?, teacher_id),
+                                          total_fee = ?, installment_count = ?, admission_date = ?
+                       WHERE id = ?""",
+                    (candidate_no_str, name, father_name_str, str(phone or "").strip(),
+                     resolved_course_id, resolved_teacher_id, float(total_fee or 0),
+                     int(installment_count or 1), admission_date_str, s_id)
+                )
+            else:
+                cur = db.execute(
+                    """INSERT INTO students (candidate_no, name, father_name, phone, course_id, teacher_id,
+                                              total_fee, installment_count, admission_date)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (candidate_no_str, name, father_name_str, str(phone or "").strip(),
+                     resolved_course_id, resolved_teacher_id, float(total_fee or 0),
+                     int(installment_count or 1), admission_date_str),
+                )
+                s_id = cur.lastrowid
+                counts["students"] += 1
+
+            if old_id is not None:
+                try:
+                    student_map[int(old_id)] = s_id
+                except (ValueError, TypeError):
+                    pass
+            if candidate_no_str:
+                student_cand_map[candidate_no_str.lower()] = s_id
+            student_name_map[(name.lower(), father_name_str.lower())] = s_id
+            student_name_map[name.lower()] = s_id
+
+            # If Payments sheet is NOT present, auto-create payment schedule and apply paid amount if present
+            if not has_payments_sheet:
+                db.execute("DELETE FROM payments WHERE student_id = ?", (s_id,))
+                course = None
+                if resolved_course_id:
+                    course = db.execute("SELECT * FROM courses WHERE id = ?", (resolved_course_id,)).fetchone()
+                create_payments_for_student(
+                    db, s_id, float(total_fee or 0), int(installment_count or 1), course, admission_date_str
+                )
+                try:
+                    p_amt = float(paid_amount or 0)
+                    if p_amt > 0:
+                        payments = db.execute("SELECT * FROM payments WHERE student_id = ? ORDER BY installment_no", (s_id,)).fetchall()
+                        rem_to_apply = p_amt
+                        for p in payments:
+                            p_tot = float(p["tuition_amount"]) + float(p["id_card_fee"]) + float(p["dmc_fee"]) + float(p["exam_fee"]) + float(p["fund_fee"])
+                            if rem_to_apply >= p_tot:
+                                db.execute("UPDATE payments SET paid = 1, paid_amount = ?, paid_date = ? WHERE id = ?",
+                                           (p_tot, admission_date_str, p["id"]))
+                                rem_to_apply -= p_tot
+                            elif rem_to_apply > 0:
+                                db.execute("UPDATE payments SET paid = 0, paid_amount = ? WHERE id = ?",
+                                           (rem_to_apply, p["id"]))
+                                rem_to_apply = 0
+                except (ValueError, TypeError):
+                    pass
+
+        db.commit()
+
+    # 4. Payments Sheet (Exact restoration of all installments, collections, paid amounts, dates, and statuses)
+    if has_payments_sheet:
+        ws_p = wb["Payments"]
+        rows_p = list(ws_p.iter_rows(min_row=2, values_only=True))
+
+        # Clear existing payments for imported students before inserting exact payments from Payments sheet
+        for s_id in set(student_map.values()):
+            db.execute("DELETE FROM payments WHERE student_id = ?", (s_id,))
+
+        for row in rows_p:
+            if not row or str(row[0]).strip().upper() == "TOTAL":
+                continue
+            padded_p = (list(row) + [None] * 19)[:19]
+            (old_p_id, old_s_id, cand_no, s_name, f_name, c_name, t_name,
+             inst_no, due_date, tuition, id_fee, dmc_fee, exam_fee, fund_fee,
+             payable, paid_amt, rem_dues, status, paid_date) = padded_p
+
+            target_student_id = None
+            if old_s_id is not None:
+                try:
+                    target_student_id = student_map.get(int(old_s_id))
+                except (ValueError, TypeError):
+                    pass
+            if not target_student_id and cand_no and str(cand_no).strip() != "-":
+                target_student_id = student_cand_map.get(str(cand_no).strip().lower())
+            if not target_student_id and s_name:
+                target_student_id = student_name_map.get((str(s_name).strip().lower(), str(f_name or "").strip().lower()))
+            if not target_student_id and s_name:
+                target_student_id = student_name_map.get(str(s_name).strip().lower())
+
+            if target_student_id:
+                inst_no_val = int(inst_no or 1)
+                due_date_str = str(due_date)[:10] if due_date and str(due_date).strip() != "-" else date.today().isoformat()
+                t_amt = float(tuition or 0)
+                i_fee = float(id_fee or 0)
+                d_fee = float(dmc_fee or 0)
+                e_fee = float(exam_fee or 0)
+                f_fee = float(fund_fee or 0)
+                tot_item = t_amt + i_fee + d_fee + e_fee + f_fee
+
+                paid_amt_val = float(paid_amt or 0)
+                status_str = str(status or "").strip().upper()
+                is_paid = 1 if (status_str == "PAID" or (tot_item > 0 and paid_amt_val >= tot_item)) else (1 if paid_amt_val > 0 and (tot_item - paid_amt_val) <= 0 else 0)
+                paid_date_str = str(paid_date)[:10] if paid_date and str(paid_date).strip() not in ("-", "None", "") else (due_date_str if is_paid else None)
+
+                db.execute(
+                    """INSERT INTO payments (student_id, installment_no, due_date, tuition_amount,
+                                              id_card_fee, dmc_fee, exam_fee, fund_fee, paid, paid_amount, paid_date)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (target_student_id, inst_no_val, due_date_str, t_amt, i_fee, d_fee, e_fee, f_fee,
+                     is_paid, paid_amt_val, paid_date_str)
+                )
+                counts["payments"] += 1
+
         db.commit()
 
     flash(
         f"Import complete: {counts['teachers']} teachers, {counts['courses']} courses, "
-        f"{counts['students']} students added.", "success"
+        f"{counts['students']} students, and {counts['payments']} payments/installments synced successfully.", "success"
     )
     return redirect(url_for("data_tools"))
 

@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="page-header">
-  <h1>Dashboard</h1>
-  <p class="muted">Overview of your college's teachers, courses, students and dues.</p>
+<div class="page-header-row">
+  <div class="page-header">
+    <h1>Dashboard</h1>
+    <p class="muted">Overview of your teachers, courses, students and dues.</p>
+  </div>
+  <div class="header-actions">
+    <button id="privacyToggleBtn" class="privacy-btn" onclick="togglePrivacyMode()" title="Show or hide financial figures across the system">
+      <span class="privacy-icon">👁️</span> <span class="privacy-btn-text">Show Amounts</span>
+    </button>
+  </div>
 </div>
 
 <div class="stat-grid">
@@ -31,14 +38,14 @@
   <div class="stat-card stat-green">
     <div class="stat-icon">💰</div>
     <div>
-      <div class="stat-value">Rs. {{ "%.0f"|format(collected) }}</div>
-      <div class="stat-label">Collected</div>
+      <div class="stat-value money-val">Rs. {{ "%.0f"|format(collected) }}</div>
+      <div class="stat-label">Total Collected</div>
     </div>
   </div>
   <div class="stat-card stat-red">
     <div class="stat-icon">⏳</div>
     <div>
-      <div class="stat-value">Rs. {{ "%.0f"|format(pending) }}</div>
+      <div class="stat-value money-val">Rs. {{ "%.0f"|format(pending) }}</div>
       <div class="stat-label">Pending Dues</div>
     </div>
   </div>
@@ -58,45 +65,68 @@
         <tbody>
           {% for d in dues %}
           <tr class="{{ 'overdue' if d.due_date < today else '' }}">
-            <td>{{ d.student_name }} <span class="muted small">#{{ d.candidate_no or '-' }}</span></td>
+            <td><b>{{ d.student_name }}</b> <span class="muted small">#{{ d.candidate_no or '-' }}</span></td>
             <td>{{ d.course_name or '-' }}</td>
-            <td>{{ d.installment_no }}</td>
+            <td>Inst {{ d.installment_no }}</td>
             <td>{{ d.due_date }} {% if d.due_date < today %}<span class="badge badge-red">Overdue</span>{% endif %}</td>
-            <td>Rs. {{ "%.0f"|format(d.paid_amount) }}</td>
-            <td>Rs. {{ "%.0f"|format(d.remaining_amount) }}</td>
-            <td><a class="link-btn" href="{{ url_for('voucher', payment_id=d.id) }}">View Slip</a></td>
+            <td><span class="money-val">Rs. {{ "%.0f"|format(d.paid_amount) }}</span></td>
+            <td><b class="money-val text-red">Rs. {{ "%.0f"|format(d.remaining_amount) }}</b></td>
+            <td><a class="link-btn" href="{{ url_for('voucher', payment_id=d.id) }}">Slip</a></td>
           </tr>
           {% else %}
           <tr><td colspan="7" class="muted">No pending dues 🎉</td></tr>
           {% endfor %}
         </tbody>
+        {% if dues %}
+        <tfoot>
+          <tr class="table-total-row">
+            <td colspan="4"><b>Total ({{ dues|length }} shown)</b></td>
+            <td><b class="money-val">Rs. {{ "%.0f"|format(dues_total_paid) }}</b></td>
+            <td><b class="money-val text-red">Rs. {{ "%.0f"|format(dues_total_remaining) }}</b></td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
     </div>
   </div>
 
   <div class="panel">
     <div class="panel-header">
-      <h2>Courses Overview</h2>
+      <h2>Courses Overview & Collections</h2>
       <a href="{{ url_for('courses') }}" class="link-btn">+ Add Course</a>
     </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead>
-          <tr><th>Course</th><th>Teacher</th><th>Duration</th><th>Fee</th><th>Students</th></tr>
+          <tr><th>Course</th><th>Teacher</th><th>Duration</th><th>Fee</th><th>Students</th><th>Collected</th><th>Dues</th></tr>
         </thead>
         <tbody>
           {% for c in courses %}
           <tr>
-            <td>{{ c.name }}</td>
+            <td><b>{{ c.name }}</b></td>
             <td>{{ c.teacher_name or '-' }}</td>
             <td>{{ c.duration or '-' }}</td>
-            <td>Rs. {{ "%.0f"|format(c.fee) }}</td>
-            <td>{{ c.student_count }}</td>
+            <td><span class="money-val">Rs. {{ "%.0f"|format(c.fee) }}</span></td>
+            <td><span class="badge badge-blue">{{ c.student_count }}</span></td>
+            <td><span class="badge badge-green money-val">Rs. {{ "%.0f"|format(c.total_collected) }}</span></td>
+            <td><span class="badge {{ 'badge-red' if c.total_dues > 0 else 'badge-gray' }} money-val">Rs. {{ "%.0f"|format(c.total_dues) }}</span></td>
           </tr>
           {% else %}
-          <tr><td colspan="5" class="muted">No courses yet.</td></tr>
+          <tr><td colspan="7" class="muted">No courses yet.</td></tr>
           {% endfor %}
         </tbody>
+        {% if courses %}
+        <tfoot>
+          <tr class="table-total-row">
+            <td colspan="3"><b>Total ({{ courses|length }} Courses)</b></td>
+            <td><b class="money-val">Rs. {{ "%.0f"|format(courses_totals.fee) }}</b></td>
+            <td><b>{{ courses_totals.student_count }}</b></td>
+            <td><b class="money-val text-green">Rs. {{ "%.0f"|format(courses_totals.total_collected) }}</b></td>
+            <td><b class="money-val text-red">Rs. {{ "%.0f"|format(courses_totals.total_dues) }}</b></td>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
     </div>
   </div>

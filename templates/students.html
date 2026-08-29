@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Students{% endblock %}
 {% block content %}
-<div class="page-header">
-  <h1>Students</h1>
-  <p class="muted">Enroll new students and generate their installment schedule automatically.</p>
+<div class="page-header-row">
+  <div class="page-header">
+    <h1>Students</h1>
+    <p class="muted">Enroll students and manage fee installments and collections.</p>
+  </div>
+  <div class="header-actions">
+    <button id="privacyToggleBtn" class="privacy-btn" onclick="togglePrivacyMode()" title="Toggle Amount Visibility">
+      <span class="privacy-icon">👁️</span> <span class="privacy-btn-text">Show Amounts</span>
+    </button>
+  </div>
 </div>
 
 <div class="grid-2">
@@ -35,7 +42,7 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Total Fee (PKR)</label><input type="number" name="total_fee" id="totalFeeInput" value="12000" step="100" required></div>
+        <div class="form-group"><label>Total Course Tuition Fee (PKR)</label><input type="number" name="total_fee" id="totalFeeInput" value="12000" step="100" required></div>
         <div class="form-group">
           <label>Installments</label>
           <select name="installment_count">
@@ -58,17 +65,30 @@
     <div class="panel-header"><h2>All Students ({{ students|length }})</h2></div>
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Name</th><th>Course</th><th>Teacher</th><th>Dues</th><th></th></tr></thead>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Course</th>
+            <th>Payable</th>
+            <th>Paid</th>
+            <th>Dues</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody>
           {% for s in students %}
           <tr>
-            <td>{{ s.name }} <span class="muted small">#{{ s.candidate_no or '-' }}</span></td>
-            <td>{{ s.course_name or '-' }}</td>
-            <td>{{ s.teacher_name or '-' }}</td>
             <td>
-              {% if s.pending_installments > 0 %}
-                <span class="badge badge-red">{{ s.pending_installments }} pending</span>
-                <div class="muted small">Rs. {{ "%.0f"|format(s.dues_amount) }}</div>
+              <b>{{ s.name }}</b>
+              <div class="muted small">#{{ s.candidate_no or '-' }} | {{ s.teacher_name or '-' }}</div>
+            </td>
+            <td>{{ s.course_name or '-' }}</td>
+            <td><span class="money-val">Rs. {{ "%.0f"|format(s.total_payable) }}</span></td>
+            <td><span class="badge badge-green money-val">Rs. {{ "%.0f"|format(s.total_paid) }}</span></td>
+            <td>
+              {% if s.dues_amount > 0 %}
+                <span class="badge badge-red money-val">Rs. {{ "%.0f"|format(s.dues_amount) }}</span>
+                <div class="muted small">{{ s.pending_installments }} pending</div>
               {% else %}
                 <span class="badge badge-green">Cleared</span>
               {% endif %}
@@ -82,9 +102,20 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="5" class="muted">No students enrolled yet.</td></tr>
+          <tr><td colspan="6" class="muted">No students enrolled yet.</td></tr>
           {% endfor %}
         </tbody>
+        {% if students %}
+        <tfoot>
+          <tr class="table-total-row">
+            <td colspan="2"><b>Total ({{ students|length }} Students)</b></td>
+            <td><b class="money-val">Rs. {{ "%.0f"|format(students_totals.total_payable) }}</b></td>
+            <td><b class="money-val text-green">Rs. {{ "%.0f"|format(students_totals.total_paid) }}</b></td>
+            <td><b class="money-val text-red">Rs. {{ "%.0f"|format(students_totals.dues_amount) }}</b></td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
     </div>
   </div>

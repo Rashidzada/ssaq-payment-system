@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}College Fee System{% endblock %}</title>
+<title>{% block title %}The Smart Skills Academy Qalagay — Fee Voucher System{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 {% block head %}{% endblock %}
 </head>
@@ -14,7 +14,7 @@
     <div class="brand">
       <span class="brand-dot"></span>
       <div>
-        <div class="brand-title">{{ dev.college }}</div>
+        <div class="brand-title">{{ dev.academy or dev.college }}</div>
         <div class="brand-sub">Fee Voucher System</div>
       </div>
     </div>
@@ -27,11 +27,14 @@
       <a href="{{ url_for('settings') }}" class="{{ 'active' if request.endpoint=='settings' }}">⚙️ Settings</a>
     </nav>
     <div class="sidebar-footer">
+      <button id="sidebarPrivacyBtn" class="privacy-btn sidebar-privacy-btn" onclick="togglePrivacyMode()" title="Toggle Amount Visibility">
+        <span class="privacy-icon">👁️</span> <span class="privacy-btn-text">Show Amounts</span>
+      </button>
       <div class="dev-card">
         <div class="dev-card-title">Need software like this?</div>
         <div class="dev-card-name">{{ dev.name }} — {{ dev.title }}</div>
         <a class="dev-whatsapp-btn" target="_blank"
-           href="https://wa.me/{{ dev.whatsapp }}?text=Hi%2C%20I%20need%20a%20software%20like%20the%20College%20Fee%20Voucher%20System">
+           href="https://wa.me/{{ dev.whatsapp }}?text=Hi%2C%20I%20need%20a%20software%20like%20the%20Fee%20Voucher%20System">
           💬 WhatsApp {{ dev.whatsapp_display }}
         </a>
       </div>

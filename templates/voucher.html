@@ -43,8 +43,10 @@
   <div class="slip">
     <div class="slip-copy-label">{{ copy_label }}</div>
     <div class="slip-header">
-      <h2>{{ dev.college }}</h2>
-      <p>(Approved by HEC / {{ dev.affiliation }})</p>
+      <h2>{{ dev.academy or dev.college }}</h2>
+      {% if dev.affiliation %}
+      <p>{{ dev.affiliation }}</p>
+      {% endif %}
     </div>
     <div class="slip-meta">
       <span><b>Date:</b> {{ today }}</span>
@@ -79,7 +81,7 @@
         <div class="signature-line">Accountant Stamp</div>
       </div>
       <div class="fine-print">FEE ONCE PAID WILL NOT BE RETURNED IN ANY CASE</div>
-      <div class="admin-contact-note">College Admin Contact: {{ dev.admin_contacts|join(' / ') }}</div>
+      <div class="admin-contact-note">Admin Contact: {{ dev.admin_display or dev.admin_contacts|join(' / ') }}</div>
       <div class="dev-print-note">Need software like this? Contact {{ dev.name }} ({{ dev.title }}) — WhatsApp: {{ dev.whatsapp_display }}</div>
     </div>
   </div>

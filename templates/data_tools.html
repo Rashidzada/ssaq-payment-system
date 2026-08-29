@@ -1,32 +1,37 @@
 {% extends "base.html" %}
-{% block title %}Import / Export{% endblock %}
+{% block title %}Import / Export — The Smart Skills Academy Qalagay{% endblock %}
 {% block content %}
 <div class="page-header">
   <h1>Excel Import / Export</h1>
-  <p class="muted">Back up all your data to Excel, or bulk-import teachers, courses and students.</p>
+  <p class="muted">Back up complete academy financial records and student data, or bulk-import data.</p>
 </div>
 
 <div class="grid-2">
   <div class="panel">
-    <div class="panel-header"><h2>⬇️ Export to Excel</h2></div>
-    <p>Downloads one workbook with 4 sheets: <b>Teachers</b>, <b>Courses</b>, <b>Students</b> and <b>Payments</b>
-       (includes every installment and its paid/unpaid status).</p>
-    <a class="btn-primary full" href="{{ url_for('export_excel') }}">⬇️ Download Excel Backup</a>
+    <div class="panel-header"><h2>⬇️ Comprehensive Excel Export</h2></div>
+    <p>Downloads an Excel workbook with <b>5 detailed sheets</b> including summaries and table totals:</p>
+    <ul class="feature-list" style="margin: 12px 0 18px 20px; font-size: 13.5px; line-height: 1.6;">
+      <li><b>Summary</b> — Key academy KPI metrics, total revenue, collections, and dues</li>
+      <li><b>Courses</b> — Each course fee, enrolled students, total collected, dues & expected revenue</li>
+      <li><b>Students</b> — Full student profiles, contact info, course fees, total paid & remaining dues</li>
+      <li><b>Payments</b> — Complete installment breakdown per student, fee items, due dates & status</li>
+      <li><b>Teachers</b> — Assigned courses, total students, total collections & pending dues</li>
+    </ul>
+    <a class="btn-primary full" href="{{ url_for('export_excel') }}">⬇️ Download Full Excel Backup</a>
   </div>
 
   <div class="panel">
-    <div class="panel-header"><h2>⬆️ Import from Excel</h2></div>
-    <p>Upload an <code>.xlsx</code> file in the same format as the export (sheets named
-       <b>Teachers</b>, <b>Courses</b>, <b>Students</b>). Matching rows are added as
-       <b>new</b> records — a fresh fee schedule is generated automatically for every imported student.</p>
+    <div class="panel-header"><h2>⬆️ Bulk Import from Excel</h2></div>
+    <p>Upload an <code>.xlsx</code> workbook with sheets named <b>Teachers</b>, <b>Courses</b>, and <b>Students</b>.
+       New records are created and linked automatically, and fresh fee schedules are generated for each student.</p>
     <form method="POST" action="{{ url_for('import_excel') }}" enctype="multipart/form-data" class="stack-form">
       <div class="form-group">
         <label>Excel File (.xlsx)</label>
         <input type="file" name="excel_file" accept=".xlsx" required>
       </div>
-      <button type="submit" class="btn-primary full">⬆️ Import Data</button>
+      <button type="submit" class="btn-primary full">⬆️ Import Data from Excel</button>
     </form>
-    <p class="muted small">Tip: export first to get a correctly formatted template, edit it, then re-import.</p>
+    <p class="muted small" style="margin-top:12px;">Tip: Download the full export first to use as a formatted Excel template.</p>
   </div>
 </div>
 {% endblock %}

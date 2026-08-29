@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Clearance Slip - {{ student.name }}{% endblock %}
+{% block head %}
+<style>
+  @media print {
+    .no-print { display: none !important; }
+    .sidebar { display: none !important; }
+    .main-content { padding: 0 !important; }
+    .app-shell { display: block !important; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header no-print">
+  <h1>{{ 'Final Clearance Slip' if total_due <= 0 else 'Dues Summary Slip' }}</h1>
+  <p class="muted">{{ student.name }} - Candidate No: {{ student.candidate_no or '-' }}</p>
+</div>
+
+<div class="voucher-actions no-print">
+  <button class="btn-primary" onclick="window.print()">Print</button>
+  <a class="btn-primary" href="{{ url_for('student_clearance_pdf', student_id=student.id) }}">Download PDF</a>
+  {% if wa_number %}
+  <a class="btn-whatsapp" target="_blank" href="https://wa.me/{{ wa_number }}?text={{ wa_message|urlencode }}">Send to Student's WhatsApp</a>
+  {% else %}
+  <span class="muted small">Add student's phone number to enable WhatsApp share.</span>
+  {% endif %}
+  <a class="btn-secondary" href="{{ url_for('view_student', student_id=student.id) }}">Back to Student</a>
+</div>
+
+<div class="slip-sheet clearance-sheet">
+  <div class="slip clearance-slip">
+    <div class="slip-copy-label">{{ 'CLEARED' if total_due <= 0 else 'DUES REMAINING' }}</div>
+    <div class="slip-header">
+      <h2>{{ dev.academy or dev.college }}</h2>
+      {% if dev.affiliation %}
+      <p>{{ dev.affiliation }}</p>
+      {% endif %}
+    </div>
+    <div class="slip-meta">
+      <span><b>Date:</b> {{ today }}</span>
+      <span><b>Candidate No:</b> {{ student.candidate_no or '-' }}</span>
+    </div>
+    <div class="slip-info">
+      <div><b>Student Name:</b> {{ student.name }}</div>
+      <div><b>Father Name:</b> {{ student.father_name or '-' }}</div>
+      <div><b>Program:</b> {{ student.course_name or '-' }} | <b>Teacher:</b> {{ student.teacher_name or '-' }}</div>
+    </div>
+
+    <table class="voucher-table">
+      <thead><tr><th>#</th><th>Installment</th><th>Payable</th><th>Paid</th><th>Remaining</th><th>Paid Date</th></tr></thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td>{{ p.installment_no }}</td>
+          <td class="left">Installment {{ p.installment_no }} of {{ student.installment_count }}</td>
+          <td>{{ "%.0f"|format(p.payment_total) }}</td>
+          <td>{{ "%.0f"|format(p.paid_amount) }}</td>
+          <td>{{ "%.0f"|format(p.remaining_amount) }}</td>
+          <td>{{ p.paid_date or '-' }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row"><td></td><td class="left">Total</td><td>{{ "%.0f"|format(total_payable) }}</td><td>{{ "%.0f"|format(total_paid) }}</td><td>{{ "%.0f"|format(total_due) }}</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <div class="slip-footer">
+      <div><b>Status:</b> {{ 'FULL PAYMENT CLEARED' if total_due <= 0 else 'DUES REMAINING' }} &nbsp; | &nbsp;
+           <b>Remaining Dues:</b> Rs. {{ "%.0f"|format(total_due) }}</div>
+      <div class="signature-area">
+        <div class="signature-line">Student Sign</div>
+        <div class="signature-line">Accountant Stamp</div>
+      </div>
+      <div class="fine-print">THIS SLIP SHOWS COMPLETE PAYMENT HISTORY FOR THIS STUDENT</div>
+      <div class="admin-contact-note">Admin Contact: {{ dev.admin_display or dev.admin_contacts|join(' / ') }}</div>
+      <div class="dev-print-note">Need software like this? Contact {{ dev.name }} ({{ dev.title }}) - WhatsApp: {{ dev.whatsapp_display }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

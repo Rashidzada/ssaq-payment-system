@@ -406,6 +406,8 @@ a { color: inherit; text-decoration: none; }
 }
 .admin-contact-note { text-align: center; font-size: 9.5px; font-weight: 700; margin-top: 4px; }
 .dev-print-note { text-align: center; font-size: 9px; font-style: italic; margin-top: 6px; color: #333; }
+.clearance-sheet { max-width: 210mm; }
+.clearance-slip { max-width: 210mm; }
 
 @media print {
   @page { size: A4; margin: 8mm; }
@@ -422,4 +424,90 @@ a { color: inherit; text-decoration: none; }
     padding: 5mm;
     overflow: hidden;
   }
+  .clearance-sheet {
+    width: 194mm;
+    max-width: 194mm;
+  }
+  .clearance-slip {
+    min-height: 260mm;
+    height: auto;
+  }
 }
+
+/* ---------- Page Header Row & Actions ---------- */
+.page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.page-header-row .page-header {
+  margin-bottom: 0;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- Privacy Eye Toggle Button ---------- */
+.privacy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #d0d7de;
+  color: #24292f;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+.privacy-btn:hover {
+  background: #f3f4f6;
+  border-color: #1F6FEB;
+  color: #1F6FEB;
+}
+.sidebar-privacy-btn {
+  width: 100%;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #e7ebf5;
+  margin-bottom: 8px;
+}
+.sidebar-privacy-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ---------- Financial Masking & Total Rows ---------- */
+.money-val {
+  transition: all 0.2s ease;
+}
+
+body.hide-amounts .money-val {
+  letter-spacing: 1px;
+}
+
+.table-total-row {
+  background: #f8fafc;
+  font-weight: 700;
+  border-top: 2px solid var(--border);
+}
+.table-total-row td {
+  padding: 11px 8px;
+  border-bottom: none;
+}
+
+.badge-blue { background: #eaf1ff; color: #1F6FEB; }
+.badge-gray { background: #f3f4f6; color: #6b7280; }
+.text-green { color: #1e9e6a !important; }
+.text-red { color: #e5484d !important; }
+

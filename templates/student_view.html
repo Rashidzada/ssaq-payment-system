@@ -1,39 +1,63 @@
 {% extends "base.html" %}
 {% block title %}{{ student.name }} — Student Detail{% endblock %}
 {% block content %}
-<div class="page-header">
-  <h1>{{ student.name }}</h1>
-  <p class="muted">Candidate No: {{ student.candidate_no or '-' }} | Father: {{ student.father_name or '-' }}</p>
-  <a class="link-btn" href="{{ url_for('edit_student', student_id=student.id) }}">Edit Student</a>
+<div class="page-header-row">
+  <div class="page-header">
+    <h1>{{ student.name }}</h1>
+    <p class="muted">Candidate No: {{ student.candidate_no or '-' }} | Father: {{ student.father_name or '-' }}</p>
+  </div>
+  <div class="header-actions">
+    <button id="privacyToggleBtn" class="privacy-btn" onclick="togglePrivacyMode()" title="Toggle Amount Visibility">
+      <span class="privacy-icon">👁️</span> <span class="privacy-btn-text">Show Amounts</span>
+    </button>
+    <a class="btn-secondary" href="{{ url_for('edit_student', student_id=student.id) }}">Edit Student</a>
+    <a class="btn-secondary" href="{{ url_for('students') }}">← Back to Students</a>
+  </div>
 </div>
 
 <div class="grid-2">
   <div class="panel">
-    <div class="panel-header"><h2>Student Info</h2></div>
+    <div class="panel-header"><h2>Student Info & Payment Status</h2></div>
     <table class="info-table">
-      <tr><td>Course</td><td>{{ student.course_name or '-' }} ({{ student.course_duration or '-' }})</td></tr>
+      <tr><td>Course</td><td><b>{{ student.course_name or '-' }}</b> ({{ student.course_duration or '-' }})</td></tr>
       <tr><td>Teacher</td><td>{{ student.teacher_name or '-' }}</td></tr>
       <tr><td>Phone</td><td>{{ student.phone or '-' }}</td></tr>
-      <tr><td>Total Fee</td><td>Rs. {{ "%.0f"|format(student.total_fee) }}</td></tr>
-      <tr><td>Total Paid</td><td>Rs. {{ "%.0f"|format(total_paid) }}</td></tr>
-      <tr><td>Remaining Dues</td><td><b>Rs. {{ "%.0f"|format(total_due) }}</b></td></tr>
+      <tr><td>Course Fee</td><td><span class="money-val">Rs. {{ "%.0f"|format(student.total_fee) }}</span></td></tr>
+      <tr><td>Total Payable</td><td><span class="money-val">Rs. {{ "%.0f"|format(total_payable) }}</span></td></tr>
+      <tr><td>Total Paid</td><td><b class="money-val text-green">Rs. {{ "%.0f"|format(total_paid) }}</b></td></tr>
+      <tr><td>Remaining Dues</td><td><b class="money-val text-red">Rs. {{ "%.0f"|format(total_due) }}</b></td></tr>
       <tr><td>Installments</td><td>{{ student.installment_count }}</td></tr>
       <tr><td>Admission Date</td><td>{{ student.admission_date }}</td></tr>
     </table>
+    <div class="form-actions" style="margin-top:14px;">
+      <a class="btn-primary full" href="{{ url_for('student_clearance', student_id=student.id) }}">
+        {{ '🎓 Final Clearance Slip' if total_due <= 0 else '📄 Dues Summary Slip' }}
+      </a>
+    </div>
   </div>
 
   <div class="panel">
     <div class="panel-header"><h2>Installment Schedule</h2></div>
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>#</th><th>Amount</th><th>Paid</th><th>Remaining</th><th>Due Date</th><th>Status</th><th></th></tr></thead>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Amount</th>
+            <th>Paid</th>
+            <th>Remaining</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody>
           {% for p in payments %}
           <tr>
-            <td>{{ p.installment_no }}</td>
-            <td>Rs. {{ "%.0f"|format(p.payment_total) }}</td>
-            <td>Rs. {{ "%.0f"|format(p.paid_amount) }}</td>
-            <td>Rs. {{ "%.0f"|format(p.remaining_amount) }}</td>
+            <td><b>Inst {{ p.installment_no }}</b></td>
+            <td><span class="money-val">Rs. {{ "%.0f"|format(p.payment_total) }}</span></td>
+            <td><span class="money-val text-green">Rs. {{ "%.0f"|format(p.paid_amount) }}</span></td>
+            <td><b class="money-val text-red">Rs. {{ "%.0f"|format(p.remaining_amount) }}</b></td>
             <td>{{ p.due_date }}</td>
             <td>
               {% if p.paid %}
@@ -56,6 +80,15 @@
           </tr>
           {% endfor %}
         </tbody>
+        <tfoot>
+          <tr class="table-total-row">
+            <td><b>Total</b></td>
+            <td><b class="money-val">Rs. {{ "%.0f"|format(total_payable) }}</b></td>
+            <td><b class="money-val text-green">Rs. {{ "%.0f"|format(total_paid) }}</b></td>
+            <td><b class="money-val text-red">Rs. {{ "%.0f"|format(total_due) }}</b></td>
+            <td colspan="3"></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   </div>

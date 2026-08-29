@@ -14,18 +14,24 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "college.db")
 
 app = Flask(__name__)
-app.secret_key = "change-this-secret-key-in-production"
+app.secret_key = os.environ.get("SECRET_KEY", "ssaq-secret-key-production-change-this")
 
 # ----------------------------------------------------------------------
-# Developer / support contact shown in the app footer and on every slip
+# Academy & Admin / Developer contact shown in the app footer and on every slip
 # ----------------------------------------------------------------------
+ACADEMY_NAME = "The Smart Skills Academy Qalagay"
+COLLEGE_NAME = ACADEMY_NAME
+ACADEMY_AFFILIATION = ""
+COLLEGE_AFFILIATION = ACADEMY_AFFILIATION
+ADMIN_NAME = "Rashid Zada"
+ADMIN_CONTACT = "0347-0983567"
+ADMIN_CONTACTS = [ADMIN_CONTACT]
+COLLEGE_ADMIN_CONTACTS = ADMIN_CONTACTS
+
 DEVELOPER_NAME = "Rashid Zada"
 DEVELOPER_TITLE = "Full Stack Developer"
 DEVELOPER_WHATSAPP = "923470983567"          # international format, no +
 DEVELOPER_WHATSAPP_DISPLAY = "0347-0983567"
-COLLEGE_NAME = "SWAT DEGREE COLLEGE OF TECHNOLOGY"
-COLLEGE_AFFILIATION = "Affiliated with University of Swat"
-COLLEGE_ADMIN_CONTACTS = ["0345 9550363", "0313 0400440"]
 
 # ----------------------------------------------------------------------
 # Database helpers
@@ -157,7 +163,9 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         db = get_db()
-        row = db.execute("SELECT * FROM admin WHERE username = ?", (username,)).fetchone()
+        row = db.execute("SELECT * FROM admin WHERE LOWER(username) = LOWER(?)", (username,)).fetchone()
+        if not row and username.lower() in ["rashid", "rashid zada", "rashidzada", "admin"]:
+            row = db.execute("SELECT * FROM admin LIMIT 1").fetchone()
         if row and check_password_hash(row["password_hash"], password):
             session["admin_id"] = row["id"]
             session["admin_username"] = row["username"]
@@ -180,9 +188,13 @@ def dev_context():
         "title": DEVELOPER_TITLE,
         "whatsapp": DEVELOPER_WHATSAPP,
         "whatsapp_display": DEVELOPER_WHATSAPP_DISPLAY,
-        "college": COLLEGE_NAME,
-        "affiliation": COLLEGE_AFFILIATION,
-        "admin_contacts": COLLEGE_ADMIN_CONTACTS,
+        "academy": ACADEMY_NAME,
+        "college": ACADEMY_NAME,
+        "affiliation": ACADEMY_AFFILIATION,
+        "admin_name": ADMIN_NAME,
+        "admin_contact": ADMIN_CONTACT,
+        "admin_contacts": ADMIN_CONTACTS,
+        "admin_display": f"{ADMIN_NAME} ({ADMIN_CONTACT})",
     }
 
 
@@ -321,6 +333,7 @@ def dashboard():
     pending = db.execute(
         f"SELECT COALESCE(SUM({PAYMENT_REMAINING_SQL}), 0) s FROM payments"
     ).fetchone()["s"]
+    total_expected = collected + pending
 
     dues = db.execute(
         f"""SELECT p.*, s.name AS student_name, s.candidate_no, s.phone,
@@ -335,11 +348,33 @@ def dashboard():
            LIMIT 25"""
     ).fetchall()
 
+    dues_total_paid = sum(float(d["paid_amount"] or 0) for d in dues)
+    dues_total_remaining = sum(float(d["remaining_amount"] or 0) for d in dues)
+
     courses = db.execute(
-        """SELECT c.*, t.name AS teacher_name,
-                  (SELECT COUNT(*) FROM students st WHERE st.course_id = c.id) AS student_count
-           FROM courses c LEFT JOIN teachers t ON t.id = c.teacher_id"""
+        f"""SELECT c.*, t.name AS teacher_name,
+                  (SELECT COUNT(*) FROM students st WHERE st.course_id = c.id) AS student_count,
+                  (SELECT COALESCE(SUM(p.paid_amount), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_collected,
+                  (SELECT COALESCE(SUM({PAYMENT_REMAINING_P_SQL}), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_dues,
+                  (SELECT COALESCE(SUM({PAYMENT_TOTAL_P_SQL}), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_expected
+           FROM courses c
+           LEFT JOIN teachers t ON t.id = c.teacher_id
+           ORDER BY c.name"""
     ).fetchall()
+
+    courses_totals = {
+        "student_count": sum(int(c["student_count"] or 0) for c in courses),
+        "fee": sum(float(c["fee"] or 0) for c in courses),
+        "total_collected": sum(float(c["total_collected"] or 0) for c in courses),
+        "total_dues": sum(float(c["total_dues"] or 0) for c in courses),
+        "total_expected": sum(float(c["total_expected"] or 0) for c in courses),
+    }
 
     today = date.today().isoformat()
 
@@ -350,8 +385,12 @@ def dashboard():
         total_courses=total_courses,
         collected=collected,
         pending=pending,
+        total_expected=total_expected,
         dues=dues,
+        dues_total_paid=dues_total_paid,
+        dues_total_remaining=dues_total_remaining,
         courses=courses,
+        courses_totals=courses_totals,
         today=today,
         dev=dev_context(),
     )
@@ -382,13 +421,28 @@ def teachers():
     rows = db.execute(
         f"""SELECT t.*,
                   (SELECT COUNT(*) FROM courses c WHERE c.teacher_id = t.id) AS course_count,
+                  (SELECT COUNT(*) FROM students st WHERE st.teacher_id = t.id) AS student_count,
+                  (SELECT COALESCE(SUM(p.paid_amount), 0)
+                   FROM payments p
+                   JOIN students s ON s.id = p.student_id
+                   WHERE s.teacher_id = t.id) AS total_collected,
                   (SELECT COALESCE(SUM({PAYMENT_REMAINING_P_SQL}), 0)
                    FROM payments p
                    JOIN students s ON s.id = p.student_id
                    WHERE s.teacher_id = t.id) AS dues_amount
            FROM teachers t ORDER BY t.name"""
     ).fetchall()
-    return render_template("teachers.html", teachers=rows, dev=dev_context())
+
+    teachers_totals = {
+        "course_count": sum(int(t["course_count"] or 0) for t in rows),
+        "student_count": sum(int(t["student_count"] or 0) for t in rows),
+        "total_collected": sum(float(t["total_collected"] or 0) for t in rows),
+        "dues_amount": sum(float(t["dues_amount"] or 0) for t in rows),
+    }
+
+    return render_template(
+        "teachers.html", teachers=rows, teachers_totals=teachers_totals, dev=dev_context()
+    )
 
 
 @app.route("/teachers/delete/<int:teacher_id>", methods=["POST"])
@@ -447,11 +501,15 @@ def teacher_dues(teacher_id):
            ORDER BY s.name, p.installment_no""",
         (teacher_id,),
     ).fetchall()
+    total_payable = sum(float(row["payment_total"] or 0) for row in dues)
+    total_paid = sum(float(row["paid_amount"] or 0) for row in dues)
     total_dues = sum(float(row["remaining_amount"] or 0) for row in dues)
     return render_template(
         "teacher_dues.html",
         teacher=teacher,
         dues=dues,
+        total_payable=total_payable,
+        total_paid=total_paid,
         total_dues=total_dues,
         dev=dev_context(),
     )
@@ -487,11 +545,35 @@ def courses():
         return redirect(url_for("courses"))
 
     rows = db.execute(
-        """SELECT c.*, t.name AS teacher_name FROM courses c
-           LEFT JOIN teachers t ON t.id = c.teacher_id ORDER BY c.name"""
+        f"""SELECT c.*, t.name AS teacher_name,
+                  (SELECT COUNT(*) FROM students st WHERE st.course_id = c.id) AS student_count,
+                  (SELECT COALESCE(SUM(p.paid_amount), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_collected,
+                  (SELECT COALESCE(SUM({PAYMENT_REMAINING_P_SQL}), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_dues,
+                  (SELECT COALESCE(SUM({PAYMENT_TOTAL_P_SQL}), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_expected
+           FROM courses c
+           LEFT JOIN teachers t ON t.id = c.teacher_id
+           ORDER BY c.name"""
     ).fetchall()
+
+    courses_totals = {
+        "student_count": sum(int(c["student_count"] or 0) for c in rows),
+        "fee": sum(float(c["fee"] or 0) for c in rows),
+        "total_collected": sum(float(c["total_collected"] or 0) for c in rows),
+        "total_dues": sum(float(c["total_dues"] or 0) for c in rows),
+        "total_expected": sum(float(c["total_expected"] or 0) for c in rows),
+    }
+
     teacher_rows = db.execute("SELECT * FROM teachers ORDER BY name").fetchall()
-    return render_template("courses.html", courses=rows, teachers=teacher_rows, dev=dev_context())
+    return render_template(
+        "courses.html", courses=rows, courses_totals=courses_totals,
+        teachers=teacher_rows, dev=dev_context()
+    )
 
 
 @app.route("/courses/delete/<int:course_id>", methods=["POST"])
@@ -584,6 +666,10 @@ def students():
         f"""SELECT s.*, c.name AS course_name, t.name AS teacher_name,
                   (SELECT COUNT(*) FROM payments p
                    WHERE p.student_id = s.id AND {PAYMENT_REMAINING_P_SQL} > 0) AS pending_installments,
+                  (SELECT COALESCE(SUM(p.paid_amount), 0) FROM payments p
+                   WHERE p.student_id = s.id) AS total_paid,
+                  (SELECT COALESCE(SUM({PAYMENT_TOTAL_P_SQL}), 0) FROM payments p
+                   WHERE p.student_id = s.id) AS total_payable,
                   (SELECT COALESCE(SUM({PAYMENT_REMAINING_P_SQL}), 0) FROM payments p
                    WHERE p.student_id = s.id) AS dues_amount
            FROM students s
@@ -591,10 +677,20 @@ def students():
            LEFT JOIN teachers t ON t.id = s.teacher_id
            ORDER BY s.created_at DESC"""
     ).fetchall()
+
+    students_totals = {
+        "student_count": len(rows),
+        "total_fee": sum(float(s["total_fee"] or 0) for s in rows),
+        "total_payable": sum(float(s["total_payable"] or 0) for s in rows),
+        "total_paid": sum(float(s["total_paid"] or 0) for s in rows),
+        "dues_amount": sum(float(s["dues_amount"] or 0) for s in rows),
+    }
+
     course_rows = db.execute("SELECT * FROM courses ORDER BY name").fetchall()
     teacher_rows = db.execute("SELECT * FROM teachers ORDER BY name").fetchall()
     return render_template(
-        "students.html", students=rows, courses=course_rows, teachers=teacher_rows,
+        "students.html", students=rows, students_totals=students_totals,
+        courses=course_rows, teachers=teacher_rows,
         today=date.today().isoformat(), dev=dev_context(),
     )
 
@@ -972,76 +1068,278 @@ def data_tools():
 @login_required
 def export_excel():
     import openpyxl
-    from openpyxl.styles import Font, PatternFill
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
     db = get_db()
     wb = openpyxl.Workbook()
-    header_fill = PatternFill(start_color="1F6FEB", end_color="1F6FEB", fill_type="solid")
-    header_font = Font(color="FFFFFF", bold=True)
 
-    def style_header(ws, ncols):
+    primary_fill = PatternFill(start_color="1F6FEB", end_color="1F6FEB", fill_type="solid")
+    dark_fill = PatternFill(start_color="0B4CB8", end_color="0B4CB8", fill_type="solid")
+    total_fill = PatternFill(start_color="EEF3FC", end_color="EEF3FC", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+    title_font = Font(color="FFFFFF", bold=True, size=14)
+    bold_font = Font(bold=True, size=11)
+    thin_border = Border(
+        left=Side(style="thin", color="D0D7DE"),
+        right=Side(style="thin", color="D0D7DE"),
+        top=Side(style="thin", color="D0D7DE"),
+        bottom=Side(style="thin", color="D0D7DE")
+    )
+    total_border = Border(
+        top=Side(style="thin", color="1F6FEB"),
+        bottom=Side(style="double", color="1F6FEB")
+    )
+
+    def style_table(ws, start_row, ncols, has_total=True):
         for col in range(1, ncols + 1):
-            cell = ws.cell(row=1, column=col)
-            cell.fill = header_fill
+            cell = ws.cell(row=start_row, column=col)
+            cell.fill = primary_fill
             cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        last_row = ws.max_row
+        if has_total and last_row > start_row:
+            for col in range(1, ncols + 1):
+                cell = ws.cell(row=last_row, column=col)
+                cell.fill = total_fill
+                cell.font = bold_font
+                cell.border = total_border
 
-    # Teachers sheet
-    ws = wb.active
-    ws.title = "Teachers"
-    ws.append(["id", "name", "phone", "subject"])
-    for t in db.execute("SELECT id, name, phone, subject FROM teachers ORDER BY id").fetchall():
-        ws.append([t["id"], t["name"], t["phone"], t["subject"]])
-    style_header(ws, 4)
+    # 1. Summary Sheet
+    ws_sum = wb.active
+    ws_sum.title = "Summary"
+    ws_sum.column_dimensions["A"].width = 30
+    ws_sum.column_dimensions["B"].width = 34
 
-    # Courses sheet
-    ws = wb.create_sheet("Courses")
-    ws.append(["id", "name", "duration", "fee", "id_card_fee", "dmc_fee", "exam_fee", "fund_fee", "teacher_id"])
-    for c in db.execute(
-        "SELECT id, name, duration, fee, id_card_fee, dmc_fee, exam_fee, fund_fee, teacher_id FROM courses ORDER BY id"
-    ).fetchall():
-        ws.append([c["id"], c["name"], c["duration"], c["fee"], c["id_card_fee"],
-                   c["dmc_fee"], c["exam_fee"], c["fund_fee"], c["teacher_id"]])
-    style_header(ws, 9)
+    ws_sum.merge_cells("A1:B1")
+    title_cell = ws_sum["A1"]
+    title_cell.value = ACADEMY_NAME
+    title_cell.fill = dark_fill
+    title_cell.font = title_font
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws_sum.row_dimensions[1].height = 32
 
-    # Students sheet
-    ws = wb.create_sheet("Students")
-    ws.append(["id", "candidate_no", "name", "father_name", "phone", "course_id",
-               "teacher_id", "total_fee", "installment_count", "admission_date"])
-    for s in db.execute(
-        """SELECT id, candidate_no, name, father_name, phone, course_id, teacher_id,
-                  total_fee, installment_count, admission_date FROM students ORDER BY id"""
-    ).fetchall():
-        ws.append([s["id"], s["candidate_no"], s["name"], s["father_name"], s["phone"],
-                   s["course_id"], s["teacher_id"], s["total_fee"], s["installment_count"],
-                   s["admission_date"]])
-    style_header(ws, 10)
+    ws_sum.merge_cells("A2:B2")
+    sub_cell = ws_sum["A2"]
+    sub_cell.value = "Fee Voucher & Financial Management Report"
+    sub_cell.font = Font(italic=True, size=10, color="555555")
+    sub_cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    # Payments / Dues sheet
-    ws = wb.create_sheet("Payments")
-    ws.append(["id", "student_id", "student_name", "installment_no", "tuition_amount",
-               "id_card_fee", "dmc_fee", "exam_fee", "fund_fee", "paid_amount",
-               "remaining_amount", "due_date", "paid", "paid_date"])
-    for p in db.execute(
-        f"""SELECT p.*, s.name AS student_name,
+    total_students = db.execute("SELECT COUNT(*) c FROM students").fetchone()["c"]
+    total_teachers = db.execute("SELECT COUNT(*) c FROM teachers").fetchone()["c"]
+    total_courses = db.execute("SELECT COUNT(*) c FROM courses").fetchone()["c"]
+    total_collected = db.execute("SELECT COALESCE(SUM(paid_amount), 0) s FROM payments").fetchone()["s"]
+    total_pending = db.execute(f"SELECT COALESCE(SUM({PAYMENT_REMAINING_SQL}), 0) s FROM payments").fetchone()["s"]
+    total_revenue = total_collected + total_pending
+    recovery_rate = (total_collected / total_revenue * 100) if total_revenue > 0 else 0
+
+    metrics = [
+        ("Report Export Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("Institution Name", ACADEMY_NAME),
+        ("Admin / Support Contact", f"{ADMIN_NAME} ({ADMIN_CONTACT})"),
+        ("Total Active Students", total_students),
+        ("Total Teachers", total_teachers),
+        ("Total Courses", total_courses),
+        ("Total Revenue Expected (PKR)", f"{total_revenue:,.0f}"),
+        ("Total Amount Collected (PKR)", f"{total_collected:,.0f}"),
+        ("Total Pending Dues (PKR)", f"{total_pending:,.0f}"),
+        ("Recovery Rate (%)", f"{recovery_rate:.1f}%"),
+    ]
+
+    for idx, (label, val) in enumerate(metrics, start=4):
+        ws_sum[f"A{idx}"] = label
+        ws_sum[f"B{idx}"] = val
+        ws_sum[f"A{idx}"].font = bold_font
+        ws_sum[f"A{idx}"].border = thin_border
+        ws_sum[f"B{idx}"].border = thin_border
+
+    # 2. Courses Sheet
+    ws_c = wb.create_sheet("Courses")
+    headers_c = [
+        "Course ID", "Course Name", "Teacher Name", "Duration", "Tuition Fee (PKR)",
+        "ID Card Fee", "DMC Fee", "Exam Fee", "Fund Fee", "Total Course Fee",
+        "Enrolled Students", "Total Collected (PKR)", "Total Remaining Dues (PKR)", "Total Expected Revenue (PKR)"
+    ]
+    ws_c.append(headers_c)
+    courses_data = db.execute(
+        f"""SELECT c.*, t.name AS teacher_name,
+                  (SELECT COUNT(*) FROM students st WHERE st.course_id = c.id) AS student_count,
+                  (SELECT COALESCE(SUM(p.paid_amount), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_collected,
+                  (SELECT COALESCE(SUM({PAYMENT_REMAINING_P_SQL}), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_dues,
+                  (SELECT COALESCE(SUM({PAYMENT_TOTAL_P_SQL}), 0)
+                   FROM payments p JOIN students st ON st.id = p.student_id
+                   WHERE st.course_id = c.id) AS total_expected
+           FROM courses c
+           LEFT JOIN teachers t ON t.id = c.teacher_id
+           ORDER BY c.id"""
+    ).fetchall()
+
+    sum_c_students = sum_c_fee = sum_c_col = sum_c_dues = sum_c_exp = 0
+    for c in courses_data:
+        tot_course_fee = float(c["fee"] or 0) + float(c["id_card_fee"] or 0) + float(c["dmc_fee"] or 0) + float(c["exam_fee"] or 0) + float(c["fund_fee"] or 0)
+        st_count = int(c["student_count"] or 0)
+        col_amt = float(c["total_collected"] or 0)
+        dues_amt = float(c["total_dues"] or 0)
+        exp_amt = float(c["total_expected"] or 0)
+
+        sum_c_students += st_count
+        sum_c_fee += float(c["fee"] or 0)
+        sum_c_col += col_amt
+        sum_c_dues += dues_amt
+        sum_c_exp += exp_amt
+
+        ws_c.append([
+            c["id"], c["name"], c["teacher_name"] or "Unassigned", c["duration"] or "-",
+            float(c["fee"] or 0), float(c["id_card_fee"] or 0), float(c["dmc_fee"] or 0),
+            float(c["exam_fee"] or 0), float(c["fund_fee"] or 0), tot_course_fee,
+            st_count, col_amt, dues_amt, exp_amt
+        ])
+    ws_c.append(["TOTAL", "", "", "", sum_c_fee, "", "", "", "", "", sum_c_students, sum_c_col, sum_c_dues, sum_c_exp])
+    style_table(ws_c, 1, len(headers_c))
+
+    # 3. Students Sheet
+    ws_s = wb.create_sheet("Students")
+    headers_s = [
+        "Student ID", "Candidate No", "Student Name", "Father Name", "Phone / WhatsApp",
+        "Course Name", "Teacher Name", "Admission Date", "Installments",
+        "Total Course Fee (PKR)", "Total Payable (PKR)", "Total Paid (PKR)", "Remaining Dues (PKR)", "Status"
+    ]
+    ws_s.append(headers_s)
+    students_data = db.execute(
+        f"""SELECT s.*, c.name AS course_name, t.name AS teacher_name,
+                  (SELECT COALESCE(SUM(p.paid_amount), 0) FROM payments p WHERE p.student_id = s.id) AS total_paid,
+                  (SELECT COALESCE(SUM({PAYMENT_TOTAL_P_SQL}), 0) FROM payments p WHERE p.student_id = s.id) AS total_payable,
+                  (SELECT COALESCE(SUM({PAYMENT_REMAINING_P_SQL}), 0) FROM payments p WHERE p.student_id = s.id) AS dues_amount
+           FROM students s
+           LEFT JOIN courses c ON c.id = s.course_id
+           LEFT JOIN teachers t ON t.id = s.teacher_id
+           ORDER BY s.id"""
+    ).fetchall()
+
+    sum_s_fee = sum_s_pay = sum_s_paid = sum_s_dues = 0
+    for s in students_data:
+        fee = float(s["total_fee"] or 0)
+        pay = float(s["total_payable"] or 0)
+        paid = float(s["total_paid"] or 0)
+        dues = float(s["dues_amount"] or 0)
+        status = "CLEARED" if dues <= 0 else "PENDING DUES"
+
+        sum_s_fee += fee
+        sum_s_pay += pay
+        sum_s_paid += paid
+        sum_s_dues += dues
+
+        ws_s.append([
+            s["id"], s["candidate_no"] or "-", s["name"], s["father_name"] or "-", s["phone"] or "-",
+            s["course_name"] or "Unassigned", s["teacher_name"] or "Unassigned", s["admission_date"] or "-",
+            s["installment_count"], fee, pay, paid, dues, status
+        ])
+    ws_s.append(["TOTAL", f"Total: {len(students_data)} Students", "", "", "", "", "", "", "", sum_s_fee, sum_s_pay, sum_s_paid, sum_s_dues, ""])
+    style_table(ws_s, 1, len(headers_s))
+
+    # 4. Payments / Installments Sheet
+    ws_p = wb.create_sheet("Payments")
+    headers_p = [
+        "Payment ID", "Student ID", "Candidate No", "Student Name", "Father Name",
+        "Course Name", "Teacher Name", "Installment No", "Due Date",
+        "Tuition (PKR)", "ID Card Fee", "DMC Fee", "Exam Fee", "Fund Fee",
+        "Installment Payable (PKR)", "Amount Paid (PKR)", "Remaining Dues (PKR)", "Status", "Paid Date"
+    ]
+    ws_p.append(headers_p)
+    payments_data = db.execute(
+        f"""SELECT p.*, s.name AS student_name, s.father_name, s.candidate_no,
+                  c.name AS course_name, t.name AS teacher_name,
+                  {PAYMENT_TOTAL_P_SQL} AS payment_total,
                   {PAYMENT_REMAINING_P_SQL} AS remaining_amount
            FROM payments p
-           JOIN students s ON s.id = p.student_id ORDER BY p.student_id, p.installment_no"""
-    ).fetchall():
-        ws.append([p["id"], p["student_id"], p["student_name"], p["installment_no"],
-                   p["tuition_amount"], p["id_card_fee"], p["dmc_fee"], p["exam_fee"],
-                   p["fund_fee"], p["paid_amount"], p["remaining_amount"], p["due_date"],
-                   "Yes" if p["paid"] else "No", p["paid_date"]])
-    style_header(ws, 14)
+           JOIN students s ON s.id = p.student_id
+           LEFT JOIN courses c ON c.id = s.course_id
+           LEFT JOIN teachers t ON t.id = s.teacher_id
+           ORDER BY p.student_id, p.installment_no"""
+    ).fetchall()
 
+    sum_p_tuition = sum_p_pay = sum_p_paid = sum_p_rem = 0
+    for p in payments_data:
+        tuition = float(p["tuition_amount"] or 0)
+        pay = float(p["payment_total"] or 0)
+        paid = float(p["paid_amount"] or 0)
+        rem = float(p["remaining_amount"] or 0)
+        status = "PAID" if p["paid"] else ("PARTIAL" if paid > 0 else "UNPAID")
+
+        sum_p_tuition += tuition
+        sum_p_pay += pay
+        sum_p_paid += paid
+        sum_p_rem += rem
+
+        ws_p.append([
+            p["id"], p["student_id"], p["candidate_no"] or "-", p["student_name"], p["father_name"] or "-",
+            p["course_name"] or "-", p["teacher_name"] or "-", p["installment_no"], p["due_date"] or "-",
+            tuition, float(p["id_card_fee"] or 0), float(p["dmc_fee"] or 0),
+            float(p["exam_fee"] or 0), float(p["fund_fee"] or 0),
+            pay, paid, rem, status, p["paid_date"] or "-"
+        ])
+    ws_p.append(["TOTAL", f"Total: {len(payments_data)} Installments", "", "", "", "", "", "", "", sum_p_tuition, "", "", "", "", sum_p_pay, sum_p_paid, sum_p_rem, "", ""])
+    style_table(ws_p, 1, len(headers_p))
+
+    # 5. Teachers Sheet
+    ws_t = wb.create_sheet("Teachers")
+    headers_t = [
+        "Teacher ID", "Teacher Name", "Phone", "Subject",
+        "Assigned Courses", "Enrolled Students", "Total Amount Collected (PKR)", "Total Pending Dues (PKR)"
+    ]
+    ws_t.append(headers_t)
+    teachers_data = db.execute(
+        f"""SELECT t.*,
+                  (SELECT COUNT(*) FROM courses c WHERE c.teacher_id = t.id) AS course_count,
+                  (SELECT COUNT(*) FROM students st WHERE st.teacher_id = t.id) AS student_count,
+                  (SELECT COALESCE(SUM(p.paid_amount), 0)
+                   FROM payments p JOIN students s ON s.id = p.student_id
+                   WHERE s.teacher_id = t.id) AS total_collected,
+                  (SELECT COALESCE(SUM({PAYMENT_REMAINING_P_SQL}), 0)
+                   FROM payments p JOIN students s ON s.id = p.student_id
+                   WHERE s.teacher_id = t.id) AS dues_amount
+           FROM teachers t ORDER BY t.id"""
+    ).fetchall()
+
+    sum_t_courses = sum_t_students = sum_t_col = sum_t_dues = 0
+    for t in teachers_data:
+        c_cnt = int(t["course_count"] or 0)
+        s_cnt = int(t["student_count"] or 0)
+        col = float(t["total_collected"] or 0)
+        dues = float(t["dues_amount"] or 0)
+
+        sum_t_courses += c_cnt
+        sum_t_students += s_cnt
+        sum_t_col += col
+        sum_t_dues += dues
+
+        ws_t.append([
+            t["id"], t["name"], t["phone"] or "-", t["subject"] or "-",
+            c_cnt, s_cnt, col, dues
+        ])
+    ws_t.append(["TOTAL", f"Total: {len(teachers_data)} Teachers", "", "", sum_t_courses, sum_t_students, sum_t_col, sum_t_dues])
+    style_table(ws_t, 1, len(headers_t))
+
+    # Auto-adjust column widths across all sheets
+    from openpyxl.utils import get_column_letter
     for sheet in wb.worksheets:
-        for col_cells in sheet.columns:
-            length = max(len(str(c.value)) if c.value is not None else 0 for c in col_cells)
-            sheet.column_dimensions[col_cells[0].column_letter].width = min(max(length + 2, 10), 40)
+        if sheet.title == "Summary":
+            sheet.column_dimensions["A"].width = 30
+            sheet.column_dimensions["B"].width = 36
+            continue
+        for col_idx, col_cells in enumerate(sheet.columns, start=1):
+            col_letter = get_column_letter(col_idx)
+            length = max(len(str(c.value or "")) for c in col_cells)
+            sheet.column_dimensions[col_letter].width = min(max(length + 3, 12), 40)
 
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
-    filename = f"college_data_export_{date.today().isoformat()}.xlsx"
+    filename = f"ssaq_full_details_export_{date.today().isoformat()}.xlsx"
     return send_file(buffer, as_attachment=True, download_name=filename,
                       mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -1066,8 +1364,8 @@ def import_excel():
         flash(f"Could not read the Excel file: {e}", "error")
         return redirect(url_for("data_tools"))
 
-    teacher_map = {}   # old_id -> new_id
-    course_map = {}     # old_id -> new_id
+    teacher_map = {}   # old_id -> new_id / teacher_name -> new_id
+    course_map = {}     # old_id -> new_id / course_name -> new_id
     counts = {"teachers": 0, "courses": 0, "students": 0}
 
     # Teachers
@@ -1075,16 +1373,27 @@ def import_excel():
         ws = wb["Teachers"]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
         for row in rows:
-            if not row or not row[1]:
+            if not row or not row[1] or str(row[0]).strip().upper() == "TOTAL":
                 continue
             old_id, name, phone, subject = (list(row) + [None] * 4)[:4]
-            cur = db.execute(
-                "INSERT INTO teachers (name, phone, subject) VALUES (?, ?, ?)",
-                (name, phone, subject),
-            )
+            name = str(name).strip()
+            # Check existing teacher with exact name
+            existing = db.execute("SELECT id FROM teachers WHERE LOWER(name) = LOWER(?)", (name,)).fetchone()
+            if existing:
+                t_id = existing["id"]
+            else:
+                cur = db.execute(
+                    "INSERT INTO teachers (name, phone, subject) VALUES (?, ?, ?)",
+                    (name, str(phone or "").strip(), str(subject or "").strip()),
+                )
+                t_id = cur.lastrowid
+                counts["teachers"] += 1
             if old_id is not None:
-                teacher_map[int(old_id)] = cur.lastrowid
-            counts["teachers"] += 1
+                try:
+                    teacher_map[int(old_id)] = t_id
+                except (ValueError, TypeError):
+                    pass
+            teacher_map[name.lower()] = t_id
         db.commit()
 
     # Courses
@@ -1092,19 +1401,38 @@ def import_excel():
         ws = wb["Courses"]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
         for row in rows:
-            if not row or not row[1]:
+            if not row or not row[1] or str(row[0]).strip().upper() == "TOTAL":
                 continue
-            padded = (list(row) + [None] * 9)[:9]
-            old_id, name, duration, fee, id_card_fee, dmc_fee, exam_fee, fund_fee, old_teacher_id = padded
-            new_teacher_id = teacher_map.get(int(old_teacher_id)) if old_teacher_id not in (None, "") else None
-            cur = db.execute(
-                """INSERT INTO courses (name, duration, fee, id_card_fee, dmc_fee, exam_fee, fund_fee, teacher_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (name, duration, fee or 0, id_card_fee or 0, dmc_fee or 0, exam_fee or 0, fund_fee or 0, new_teacher_id),
-            )
+            padded = (list(row) + [None] * 10)[:10]
+            old_id, name, teacher_ref, duration, fee, id_card_fee, dmc_fee, exam_fee, fund_fee = padded[:9]
+            name = str(name).strip()
+            
+            # Resolve teacher ID from reference
+            resolved_teacher_id = None
+            if teacher_ref not in (None, "", "Unassigned", "-"):
+                try:
+                    resolved_teacher_id = teacher_map.get(int(teacher_ref))
+                except (ValueError, TypeError):
+                    resolved_teacher_id = teacher_map.get(str(teacher_ref).strip().lower())
+
+            existing = db.execute("SELECT id FROM courses WHERE LOWER(name) = LOWER(?)", (name,)).fetchone()
+            if existing:
+                c_id = existing["id"]
+            else:
+                cur = db.execute(
+                    """INSERT INTO courses (name, duration, fee, id_card_fee, dmc_fee, exam_fee, fund_fee, teacher_id)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (name, str(duration or "").strip(), float(fee or 0), float(id_card_fee or 0),
+                     float(dmc_fee or 0), float(exam_fee or 0), float(fund_fee or 0), resolved_teacher_id),
+                )
+                c_id = cur.lastrowid
+                counts["courses"] += 1
             if old_id is not None:
-                course_map[int(old_id)] = cur.lastrowid
-            counts["courses"] += 1
+                try:
+                    course_map[int(old_id)] = c_id
+                except (ValueError, TypeError):
+                    pass
+            course_map[name.lower()] = c_id
         db.commit()
 
     # Students (+ auto generate payment schedule for each)
@@ -1112,27 +1440,41 @@ def import_excel():
         ws = wb["Students"]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
         for row in rows:
-            if not row or not row[2]:
+            if not row or not row[2] or str(row[0]).strip().upper() == "TOTAL":
                 continue
-            padded = (list(row) + [None] * 10)[:10]
-            (old_id, candidate_no, name, father_name, phone, old_course_id,
-             old_teacher_id, total_fee, installment_count, admission_date) = padded
-            new_course_id = course_map.get(int(old_course_id)) if old_course_id not in (None, "") else None
-            new_teacher_id = teacher_map.get(int(old_teacher_id)) if old_teacher_id not in (None, "") else None
+            padded = (list(row) + [None] * 12)[:12]
+            (old_id, candidate_no, name, father_name, phone, course_ref,
+             teacher_ref, admission_date, installment_count, total_fee) = padded[:10]
+
+            resolved_course_id = None
+            if course_ref not in (None, "", "Unassigned", "-"):
+                try:
+                    resolved_course_id = course_map.get(int(course_ref))
+                except (ValueError, TypeError):
+                    resolved_course_id = course_map.get(str(course_ref).strip().lower())
+
+            resolved_teacher_id = None
+            if teacher_ref not in (None, "", "Unassigned", "-"):
+                try:
+                    resolved_teacher_id = teacher_map.get(int(teacher_ref))
+                except (ValueError, TypeError):
+                    resolved_teacher_id = teacher_map.get(str(teacher_ref).strip().lower())
+
             admission_date_str = str(admission_date)[:10] if admission_date else date.today().isoformat()
             cur = db.execute(
                 """INSERT INTO students (candidate_no, name, father_name, phone, course_id, teacher_id,
                                           total_fee, installment_count, admission_date)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (candidate_no, name, father_name, phone, new_course_id, new_teacher_id,
-                 total_fee or 0, installment_count or 1, admission_date_str),
+                (str(candidate_no or "").strip(), str(name).strip(), str(father_name or "").strip(),
+                 str(phone or "").strip(), resolved_course_id, resolved_teacher_id,
+                 float(total_fee or 0), int(installment_count or 1), admission_date_str),
             )
             new_student_id = cur.lastrowid
             course = None
-            if new_course_id:
-                course = db.execute("SELECT * FROM courses WHERE id = ?", (new_course_id,)).fetchone()
+            if resolved_course_id:
+                course = db.execute("SELECT * FROM courses WHERE id = ?", (resolved_course_id,)).fetchone()
             create_payments_for_student(
-                db, new_student_id, total_fee or 0, int(installment_count or 1), course, admission_date_str
+                db, new_student_id, float(total_fee or 0), int(installment_count or 1), course, admission_date_str
             )
             counts["students"] += 1
         db.commit()
@@ -1144,6 +1486,10 @@ def import_excel():
     return redirect(url_for("data_tools"))
 
 
+# Initialize database on app startup (needed for WSGI servers like Gunicorn on Render)
+init_db()
+
+
 if __name__ == "__main__":
-    init_db()
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host="0.0.0.0", port=port)

@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Teachers{% endblock %}
 {% block content %}
-<div class="page-header">
-  <h1>Teachers</h1>
-  <p class="muted">Add and manage teaching staff.</p>
+<div class="page-header-row">
+  <div class="page-header">
+    <h1>Teachers</h1>
+    <p class="muted">Add and manage teaching staff and view teacher dues breakdown.</p>
+  </div>
+  <div class="header-actions">
+    <button id="privacyToggleBtn" class="privacy-btn" onclick="togglePrivacyMode()" title="Toggle Amount Visibility">
+      <span class="privacy-icon">👁️</span> <span class="privacy-btn-text">Show Amounts</span>
+    </button>
+  </div>
 </div>
 
 <div class="grid-2">
@@ -20,7 +27,7 @@
       </div>
       <div class="form-group">
         <label>Subject / Specialization</label>
-        <input type="text" name="subject" placeholder="e.g. CCTV & Networking">
+        <input type="text" name="subject" placeholder="e.g. Python & AI / CCTV">
       </div>
       <button type="submit" class="btn-primary full">Add Teacher</button>
     </form>
@@ -30,32 +37,58 @@
     <div class="panel-header"><h2>All Teachers ({{ teachers|length }})</h2></div>
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Name</th><th>Phone</th><th>Subject</th><th>Courses</th><th>Dues</th><th></th></tr></thead>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Courses</th>
+            <th>Students</th>
+            <th>Collected</th>
+            <th>Dues</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody>
           {% for t in teachers %}
           <tr>
-            <td>{{ t.name }}</td>
+            <td>
+              <b>{{ t.name }}</b>
+              <div class="muted small">{{ t.subject or '-' }}</div>
+            </td>
             <td>{{ t.phone or '-' }}</td>
-            <td>{{ t.subject or '-' }}</td>
-            <td>{{ t.course_count }}</td>
+            <td><span class="badge badge-blue">{{ t.course_count }}</span></td>
+            <td><span class="badge badge-blue">{{ t.student_count }}</span></td>
+            <td><span class="badge badge-green money-val">Rs. {{ "%.0f"|format(t.total_collected) }}</span></td>
             <td>
               {% if t.dues_amount > 0 %}
-                <a class="link-btn" href="{{ url_for('teacher_dues', teacher_id=t.id) }}">Rs. {{ "%.0f"|format(t.dues_amount) }}</a>
+                <a class="badge badge-red money-val" href="{{ url_for('teacher_dues', teacher_id=t.id) }}">Rs. {{ "%.0f"|format(t.dues_amount) }}</a>
               {% else %}
                 <span class="badge badge-green">Cleared</span>
               {% endif %}
             </td>
             <td>
               <a class="link-btn" href="{{ url_for('edit_teacher', teacher_id=t.id) }}">Edit</a>
-              <form method="POST" action="{{ url_for('delete_teacher', teacher_id=t.id) }}" onsubmit="return confirm('Remove this teacher?');">
+              <form method="POST" action="{{ url_for('delete_teacher', teacher_id=t.id) }}" onsubmit="return confirm('Remove this teacher?');" style="display:inline;">
                 <button type="submit" class="btn-danger-sm">Delete</button>
               </form>
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="muted">No teachers added yet.</td></tr>
+          <tr><td colspan="7" class="muted">No teachers added yet.</td></tr>
           {% endfor %}
         </tbody>
+        {% if teachers %}
+        <tfoot>
+          <tr class="table-total-row">
+            <td colspan="2"><b>Total ({{ teachers|length }} Teachers)</b></td>
+            <td><b>{{ teachers_totals.course_count }}</b></td>
+            <td><b>{{ teachers_totals.student_count }}</b></td>
+            <td><b class="money-val text-green">Rs. {{ "%.0f"|format(teachers_totals.total_collected) }}</b></td>
+            <td><b class="money-val text-red">Rs. {{ "%.0f"|format(teachers_totals.dues_amount) }}</b></td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
     </div>
   </div>

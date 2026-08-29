@@ -1,7 +1,7 @@
-# College Fee Voucher System (Flask)
+# The Smart Skills Academy Qalagay — Fee Voucher System (Flask)
 
-A complete, local-first fee voucher / student management system for
-**SWAT DEGREE COLLEGE OF TECHNOLOGY** — built with Flask, SQLite, HTML/CSS/JS.
+A complete, local-first fee voucher / student management and financial reporting system for
+**The Smart Skills Academy Qalagay** — built with Flask, SQLite, HTML/CSS/JS.
 
 Built by **Rashid Zada — Full Stack Developer**
 📱 WhatsApp: **0347-0983567** — message him if you need similar software.
@@ -10,22 +10,22 @@ Built by **Rashid Zada — Full Stack Developer**
 
 ## ✨ Features
 
-- 🔐 **Admin-only login** (default `admin` / `admin123`), change password anytime in Settings
-- 📊 **Dashboard** — total students, teachers, courses, amount collected, pending dues
-- 👩‍🏫 **Teachers** — add / remove teaching staff
-- 📘 **Courses** — set tuition fee + one-time fees (ID card, DMC, exam, fund)
-- 🎓 **Students** — enroll students, pick a course/teacher, choose 1–4 installments;
-  the fee schedule is generated automatically
-- 💰 **Dues tracking** — see every unpaid/overdue installment per student, mark as paid
-- 🧾 **Real two-copy voucher slip** — Office Copy + Student Copy, matching your original design
-- 🖨️ **Print** directly from the browser (both copies laid out for printing)
-- ⬇️ **Download PDF** — both copies on one A4 page (generated server-side with ReportLab,
-  no external programs needed)
-- 💬 **WhatsApp share** — one click opens a chat with the **student's own WhatsApp number**
-  with the voucher details pre-filled (see note below on attaching the PDF)
-- 📥 **Excel Import / Export** — back up all data (teachers, courses, students, payments)
-  to a `.xlsx` file, or bulk-import from Excel
-- 100% **local** — runs on your own PC, data stored in a local SQLite file (`college.db`)
+- 🔐 **Admin-only login** (default `admin` or `rashid` / `admin123`), change password anytime in Settings
+- 👁️ **Privacy Eye Toggle (Default Hidden/OFF)** — 1-click button in top header and sidebar to mask/unmask all sensitive financial amounts across the system (`Rs. •••••` / real numbers)
+- 📊 **Dashboard & Metrics** — total students, teachers, courses, total collected, pending dues, and expected revenue
+- 📘 **Courses & Revenue Tracking** — tracks tuition fee, one-time fees (ID card, DMC, exam, fund), enrolled students, total collected, pending dues, and total expected revenue per course with grand totals
+- 👩‍🏫 **Teachers Management & Dues** — add/remove staff, view courses taught, enrolled students, and total fee dues per teacher
+- 🎓 **Students Management** — enroll students, pick course & teacher, choose 1–4 installments; automatic installment generation and full dues tracking
+- 🧾 **Real Two-Copy Voucher Slips** — Office Copy + Student Copy on one A4 page for printing and PDF generation
+- 🖨️ **Print & PDF Downloads** — server-side generated voucher slips and clearance certificates
+- 💬 **WhatsApp 1-Click Sharing** — opens direct chat with student's WhatsApp number with customized voucher breakdown pre-filled
+- 📥 **Comprehensive 5-Sheet Excel Export & Import** — full backup including:
+  - **Summary**: Key KPI metrics, recovery rates, and academy financial overview
+  - **Courses**: Fee structures, enrolled students, total collections, dues, and table totals
+  - **Students**: Complete profiles, course fees, total paid, dues, and clearance statuses
+  - **Payments**: Full installment schedule per student with breakdown and statuses
+  - **Teachers**: Course assignments, students taught, revenue generated, and dues
+- 100% **local** — runs on your own PC, data stored securely in a local database file (`college.db`)
 
 ---
 

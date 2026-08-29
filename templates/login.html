@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Admin Login{% endblock %}
+{% block title %}Admin Login — The Smart Skills Academy Qalagay{% endblock %}
 {% block content_noauth %}
 <div class="login-page">
   <div class="login-card">
     <div class="login-logo">🎓</div>
-    <h1>{{ dev.college }}</h1>
+    <h1>{{ dev.academy or dev.college }}</h1>
     <p class="login-sub">Admin Login — Fee Voucher System</p>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -34,7 +34,7 @@
       <div class="dev-card-title">Need a software like this for your institute?</div>
       <div class="dev-card-name">{{ dev.name }} — {{ dev.title }}</div>
       <a class="dev-whatsapp-btn" target="_blank"
-         href="https://wa.me/{{ dev.whatsapp }}?text=Hi%2C%20I%20need%20a%20software%20like%20the%20College%20Fee%20Voucher%20System">
+         href="https://wa.me/{{ dev.whatsapp }}?text=Hi%2C%20I%20need%20a%20software%20like%20the%20Fee%20Voucher%20System">
         💬 WhatsApp {{ dev.whatsapp_display }}
       </a>
     </div>

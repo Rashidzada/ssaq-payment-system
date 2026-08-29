@@ -1,35 +1,64 @@
 {% extends "base.html" %}
-{% block title %}Teacher Dues{% endblock %}
+{% block title %}Teacher Dues — {{ teacher.name }}{% endblock %}
 {% block content %}
-<div class="page-header">
-  <h1>{{ teacher.name }} Dues</h1>
-  <p class="muted">Students assigned to this teacher with remaining fee balances.</p>
-  <a class="link-btn" href="{{ url_for('teachers') }}">Back to Teachers</a>
+<div class="page-header-row">
+  <div class="page-header">
+    <h1>{{ teacher.name }} — Dues</h1>
+    <p class="muted">Students assigned to this teacher with remaining fee balances.</p>
+  </div>
+  <div class="header-actions">
+    <button id="privacyToggleBtn" class="privacy-btn" onclick="togglePrivacyMode()" title="Toggle Amount Visibility">
+      <span class="privacy-icon">👁️</span> <span class="privacy-btn-text">Show Amounts</span>
+    </button>
+    <a class="btn-secondary" href="{{ url_for('teachers') }}">← Back to Teachers</a>
+  </div>
 </div>
 
 <div class="panel">
   <div class="panel-header">
-    <h2>Total Remaining: Rs. {{ "%.0f"|format(total_dues) }}</h2>
+    <h2>Total Pending Dues: <span class="money-val text-red">Rs. {{ "%.0f"|format(total_dues) }}</span></h2>
   </div>
   <div class="table-wrap">
     <table class="data-table">
-      <thead><tr><th>Student</th><th>Course</th><th>Installment</th><th>Total</th><th>Paid</th><th>Remaining</th><th>Due Date</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Course</th>
+          <th>Installment</th>
+          <th>Total</th>
+          <th>Paid</th>
+          <th>Remaining</th>
+          <th>Due Date</th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         {% for d in dues %}
         <tr>
-          <td>{{ d.student_name }} <span class="muted small">#{{ d.candidate_no or '-' }}</span></td>
+          <td><b>{{ d.student_name }}</b> <span class="muted small">#{{ d.candidate_no or '-' }}</span></td>
           <td>{{ d.course_name or '-' }}</td>
-          <td>{{ d.installment_no }}</td>
-          <td>Rs. {{ "%.0f"|format(d.payment_total) }}</td>
-          <td>Rs. {{ "%.0f"|format(d.paid_amount) }}</td>
-          <td><b>Rs. {{ "%.0f"|format(d.remaining_amount) }}</b></td>
+          <td>Inst {{ d.installment_no }}</td>
+          <td><span class="money-val">Rs. {{ "%.0f"|format(d.payment_total) }}</span></td>
+          <td><span class="money-val text-green">Rs. {{ "%.0f"|format(d.paid_amount) }}</span></td>
+          <td><b class="money-val text-red">Rs. {{ "%.0f"|format(d.remaining_amount) }}</b></td>
           <td>{{ d.due_date }}</td>
           <td><a class="link-btn" href="{{ url_for('voucher', payment_id=d.id) }}">Slip</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="muted">No dues for this teacher.</td></tr>
+        <tr><td colspan="8" class="muted">No pending dues for this teacher 🎉</td></tr>
         {% endfor %}
       </tbody>
+      {% if dues %}
+      <tfoot>
+        <tr class="table-total-row">
+          <td colspan="3"><b>Total ({{ dues|length }} Installments)</b></td>
+          <td><b class="money-val">Rs. {{ "%.0f"|format(total_payable) }}</b></td>
+          <td><b class="money-val text-green">Rs. {{ "%.0f"|format(total_paid) }}</b></td>
+          <td><b class="money-val text-red">Rs. {{ "%.0f"|format(total_dues) }}</b></td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
     </table>
   </div>
 </div>

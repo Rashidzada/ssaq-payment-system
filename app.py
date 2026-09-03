@@ -373,29 +373,53 @@ def summarize_payments(payments):
     return total_payable, total_paid, total_due
 
 
-def create_payments_for_student(db, student_id, total_fee, installment_count, course, admission_date_str):
-    installment_amount = round(total_fee / installment_count, 2)
+def create_payments_for_student(db, student_id, total_fee, installment_count, course, admission_date_str, custom_installments=None):
     try:
         base_date = datetime.strptime(admission_date_str, "%Y-%m-%d").date()
     except (ValueError, TypeError):
         base_date = date.today()
 
-    for i in range(1, installment_count + 1):
-        due = base_date + timedelta(days=30 * (i - 1)) if i > 1 else base_date + timedelta(days=15)
-        id_card = course["id_card_fee"] if course and i == 1 else 0
-        dmc = course["dmc_fee"] if course and i == 1 else 0
-        exam = course["exam_fee"] if course and i == 1 else 0
-        fund = course["fund_fee"] if course and i == 1 else 0
-        db.execute(
-            """INSERT INTO payments
-               (student_id, installment_no, tuition_amount, id_card_fee, dmc_fee, exam_fee, fund_fee, due_date, paid)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
-            (student_id, i, installment_amount, id_card, dmc, exam, fund, due.isoformat()),
-        )
+    if custom_installments:
+        installment_count = len(custom_installments)
+        for i, item in enumerate(custom_installments, 1):
+            amt = float(item["amount"])
+            dt_val = item.get("due_date")
+            if dt_val:
+                try:
+                    due = datetime.strptime(dt_val, "%Y-%m-%d").date()
+                except Exception:
+                    due = base_date + timedelta(days=30 * (i - 1)) if i > 1 else base_date + timedelta(days=15)
+            else:
+                due = base_date + timedelta(days=30 * (i - 1)) if i > 1 else base_date + timedelta(days=15)
+
+            id_card = course["id_card_fee"] if course and i == 1 else 0
+            dmc = course["dmc_fee"] if course and i == 1 else 0
+            exam = course["exam_fee"] if course and i == 1 else 0
+            fund = course["fund_fee"] if course and i == 1 else 0
+            db.execute(
+                """INSERT INTO payments
+                   (student_id, installment_no, tuition_amount, id_card_fee, dmc_fee, exam_fee, fund_fee, due_date, paid)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (student_id, i, amt, id_card, dmc, exam, fund, due.isoformat()),
+            )
+    else:
+        installment_amount = round(total_fee / installment_count, 2)
+        for i in range(1, installment_count + 1):
+            due = base_date + timedelta(days=30 * (i - 1)) if i > 1 else base_date + timedelta(days=15)
+            id_card = course["id_card_fee"] if course and i == 1 else 0
+            dmc = course["dmc_fee"] if course and i == 1 else 0
+            exam = course["exam_fee"] if course and i == 1 else 0
+            fund = course["fund_fee"] if course and i == 1 else 0
+            db.execute(
+                """INSERT INTO payments
+                   (student_id, installment_no, tuition_amount, id_card_fee, dmc_fee, exam_fee, fund_fee, due_date, paid)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (student_id, i, installment_amount, id_card, dmc, exam, fund, due.isoformat()),
+            )
     db.commit()
 
 
-def rebuild_unpaid_payments_for_student(db, student_id, total_fee, installment_count, course, admission_date_str):
+def rebuild_unpaid_payments_for_student(db, student_id, total_fee, installment_count, course, admission_date_str, custom_installments=None):
     paid_rows = db.execute(
         "SELECT installment_no FROM payments WHERE student_id = ? AND (paid = 1 OR paid_amount > 0)",
         (student_id,),
@@ -406,26 +430,57 @@ def rebuild_unpaid_payments_for_student(db, student_id, total_fee, installment_c
 
     db.execute("DELETE FROM payments WHERE student_id = ? AND paid = 0 AND paid_amount = 0", (student_id,))
 
-    installment_amount = round(total_fee / installment_count, 2)
     try:
         base_date = datetime.strptime(admission_date_str, "%Y-%m-%d").date()
     except (ValueError, TypeError):
         base_date = date.today()
 
-    for i in range(1, installment_count + 1):
-        if i in paid_installments:
-            continue
-        due = base_date + timedelta(days=30 * (i - 1)) if i > 1 else base_date + timedelta(days=15)
-        id_card = course["id_card_fee"] if course and i == 1 else 0
-        dmc = course["dmc_fee"] if course and i == 1 else 0
-        exam = course["exam_fee"] if course and i == 1 else 0
-        fund = course["fund_fee"] if course and i == 1 else 0
-        db.execute(
-            """INSERT INTO payments
-               (student_id, installment_no, tuition_amount, id_card_fee, dmc_fee, exam_fee, fund_fee, due_date, paid)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
-            (student_id, i, installment_amount, id_card, dmc, exam, fund, due.isoformat()),
-        )
+    if custom_installments:
+        for i, item in enumerate(custom_installments, 1):
+            if i in paid_installments:
+                continue
+            amt = float(item["amount"])
+            dt_val = item.get("due_date")
+            if dt_val:
+                try:
+                    due = datetime.strptime(dt_val, "%Y-%m-%d").date()
+                except Exception:
+                    due = base_date + timedelta(days=30 * (i - 1)) if i > 1 else base_date + timedelta(days=15)
+            else:
+                due = base_date + timedelta(days=30 * (i - 1)) if i > 1 else base_date + timedelta(days=15)
+
+            id_card = course["id_card_fee"] if course and i == 1 else 0
+            dmc = course["dmc_fee"] if course and i == 1 else 0
+            exam = course["exam_fee"] if course and i == 1 else 0
+            fund = course["fund_fee"] if course and i == 1 else 0
+            db.execute(
+                """INSERT INTO payments
+                   (student_id, installment_no, tuition_amount, id_card_fee, dmc_fee, exam_fee, fund_fee, due_date, paid)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (student_id, i, amt, id_card, dmc, exam, fund, due.isoformat()),
+            )
+    else:
+        paid_tuition = db.execute(
+            "SELECT COALESCE(SUM(tuition_amount), 0) as s FROM payments WHERE student_id = ? AND (paid = 1 OR paid_amount > 0)",
+            (student_id,),
+        ).fetchone()["s"]
+        remaining_tuition = max(total_fee - paid_tuition, 0)
+        unpaid_indices = [i for i in range(1, installment_count + 1) if i not in paid_installments]
+        unpaid_count = len(unpaid_indices)
+        installment_amount = round(remaining_tuition / unpaid_count, 2) if unpaid_count > 0 else 0
+
+        for i in unpaid_indices:
+            due = base_date + timedelta(days=30 * (i - 1)) if i > 1 else base_date + timedelta(days=15)
+            id_card = course["id_card_fee"] if course and i == 1 else 0
+            dmc = course["dmc_fee"] if course and i == 1 else 0
+            exam = course["exam_fee"] if course and i == 1 else 0
+            fund = course["fund_fee"] if course and i == 1 else 0
+            db.execute(
+                """INSERT INTO payments
+                   (student_id, installment_no, tuition_amount, id_card_fee, dmc_fee, exam_fee, fund_fee, due_date, paid)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (student_id, i, installment_amount, id_card, dmc, exam, fund, due.isoformat()),
+            )
     db.commit()
 
 
@@ -749,8 +804,32 @@ def students():
         course_id = request.form.get("course_id") or None
         teacher_id = request.form.get("teacher_id") or None
         total_fee = float(request.form.get("total_fee") or 0)
-        installment_count = int(request.form.get("installment_count") or 1)
+        raw_count = request.form.get("installment_count") or "1"
+        try:
+            installment_count = int(raw_count)
+        except (ValueError, TypeError):
+            installment_count = 1
         admission_date = request.form.get("admission_date") or date.today().isoformat()
+        installment_plan = request.form.get("installment_plan", "equal")
+        custom_amounts = request.form.getlist("custom_installment_amount")
+        custom_dates = request.form.getlist("custom_installment_date")
+
+        parsed_custom = []
+        if installment_plan == "custom" and custom_amounts:
+            for amt_str, dt_str in zip(custom_amounts, custom_dates):
+                try:
+                    amt = float(amt_str)
+                    if amt > 0:
+                        parsed_custom.append({
+                            "amount": amt,
+                            "due_date": dt_str.strip() if dt_str else None,
+                        })
+                except (ValueError, TypeError):
+                    pass
+
+        if parsed_custom:
+            installment_count = len(parsed_custom)
+            total_fee = sum(item["amount"] for item in parsed_custom)
 
         if not name:
             flash("Student name is required.", "error")
@@ -771,7 +850,10 @@ def students():
         if course_id:
             course = db.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
 
-        create_payments_for_student(db, student_id, total_fee, installment_count, course, admission_date)
+        create_payments_for_student(
+            db, student_id, total_fee, installment_count, course, admission_date,
+            custom_installments=parsed_custom if parsed_custom else None,
+        )
         flash("Student enrolled and fee schedule generated.", "success")
         return redirect(url_for("view_student", student_id=student_id))
 
@@ -1031,19 +1113,44 @@ def edit_student(student_id):
         course_id = request.form.get("course_id") or None
         teacher_id = request.form.get("teacher_id") or None
         total_fee = float(request.form.get("total_fee") or 0)
-        installment_count = int(request.form.get("installment_count") or 1)
+        raw_count = request.form.get("installment_count") or "1"
+        try:
+            installment_count = int(raw_count)
+        except (ValueError, TypeError):
+            installment_count = 1
         admission_date = request.form.get("admission_date") or date.today().isoformat()
+        installment_plan = request.form.get("installment_plan", "equal")
+        custom_amounts = request.form.getlist("custom_installment_amount")
+        custom_dates = request.form.getlist("custom_installment_date")
+
+        parsed_custom = []
+        if installment_plan == "custom" and custom_amounts:
+            for amt_str, dt_str in zip(custom_amounts, custom_dates):
+                try:
+                    amt = float(amt_str)
+                    if amt > 0:
+                        parsed_custom.append({
+                            "amount": amt,
+                            "due_date": dt_str.strip() if dt_str else None,
+                        })
+                except (ValueError, TypeError):
+                    pass
 
         if not name:
             flash("Student name is required.", "error")
             return redirect(url_for("edit_student", student_id=student_id))
 
-        schedule_changed = (
-            str(student["course_id"] or "") != str(course_id or "")
-            or float(student["total_fee"] or 0) != total_fee
-            or int(student["installment_count"] or 1) != installment_count
-            or (student["admission_date"] or "") != admission_date
-        )
+        if parsed_custom:
+            installment_count = len(parsed_custom)
+            total_fee = sum(item["amount"] for item in parsed_custom)
+            schedule_changed = True
+        else:
+            schedule_changed = (
+                str(student["course_id"] or "") != str(course_id or "")
+                or float(student["total_fee"] or 0) != total_fee
+                or int(student["installment_count"] or 1) != installment_count
+                or (student["admission_date"] or "") != admission_date
+            )
 
         paid_max = db.execute(
             "SELECT MAX(installment_no) AS max_paid FROM payments WHERE student_id = ? AND (paid = 1 OR paid_amount > 0)",
@@ -1067,7 +1174,8 @@ def edit_student(student_id):
             if course_id:
                 course = db.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
             rebuild_unpaid_payments_for_student(
-                db, student_id, total_fee, installment_count, course, admission_date
+                db, student_id, total_fee, installment_count, course, admission_date,
+                custom_installments=parsed_custom if parsed_custom else None
             )
         else:
             db.commit()
@@ -1077,11 +1185,13 @@ def edit_student(student_id):
 
     course_rows = db.execute("SELECT * FROM courses ORDER BY name").fetchall()
     teacher_rows = db.execute("SELECT * FROM teachers ORDER BY name").fetchall()
+    payments = get_student_payment_rows(db, student_id)
     return render_template(
         "student_edit.html",
         student=student,
         courses=course_rows,
         teachers=teacher_rows,
+        payments=payments,
         dev=dev_context(),
     )
 

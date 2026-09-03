@@ -496,6 +496,161 @@ a { color: inherit; text-decoration: none; }
   font-size: 12px;
   font-weight: 600;
   color: #64748b;
+/* ---------- Custom Installment Planner ---------- */
+.custom-installments-box {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.custom-inst-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.custom-inst-title b {
+  font-size: 12.5px;
+  color: #0f172a;
+}
+.custom-inst-title .sub {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+.btn-balance {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-balance:hover {
+  background: #dbeafe;
+}
+.custom-inst-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.custom-inst-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+}
+.inst-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e3a8a;
+  background: #dbeafe;
+  padding: 5px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  min-width: 48px;
+  text-align: center;
+}
+.inst-amt-field {
+  flex: 1.2;
+}
+.inst-date-field {
+  flex: 1.2;
+}
+.inst-amt-field label, .inst-date-field label {
+  display: block;
+  font-size: 10.5px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.inst-amt-field input, .inst-date-field input {
+  width: 100%;
+  height: 32px;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #ffffff;
+  outline: none;
+}
+.inst-amt-field input:focus, .inst-date-field input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+.inst-del-btn {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 5px;
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  margin-top: 14px;
+}
+.inst-del-btn:hover {
+  background: #fca5a5;
+}
+.custom-inst-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+.btn-add-inst {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px dashed #93c5fd;
+  padding: 5px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-add-inst:hover {
+  background: #dbeafe;
+  border-style: solid;
+}
+.custom-inst-tally {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.custom-inst-hint {
+  font-size: 11px;
+  color: #2563eb;
+  cursor: pointer;
+  margin-top: 4px;
+  display: inline-block;
+  font-weight: 500;
+  text-decoration: underline;
 }
 
 /* ---------- Download PDF Button & Toolbar ---------- */

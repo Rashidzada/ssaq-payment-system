@@ -46,14 +46,42 @@
         <div class="form-group"><label>Total Course Tuition Fee (PKR)</label><input type="number" name="total_fee" id="totalFeeInput" value="12000" step="100" required></div>
         <div class="form-group">
           <label>Installments</label>
-          <select name="installment_count">
-            <option value="1">Full Payment</option>
+          <select name="installment_count" id="installmentCountSelect">
+            <option value="1">Full Payment (1 Installment)</option>
             <option value="2" selected>2 Installments</option>
             <option value="3">3 Installments</option>
             <option value="4">4 Installments</option>
+            <option value="5">5 Installments</option>
+            <option value="6">6 Installments</option>
+            <option value="custom">⚡ Custom (Student Affordability Plan)</option>
           </select>
+          <input type="hidden" name="installment_plan" id="installmentPlanInput" value="equal">
+          <span class="custom-inst-hint" id="toggleCustomHint" onclick="enableCustomPlan()">⚡ Switch to custom student amounts</span>
         </div>
       </div>
+
+      <!-- Custom Installments Builder Panel (Student Affordability) -->
+      <div id="customInstallmentsBox" class="custom-installments-box" style="display: none;">
+        <div class="custom-inst-header">
+          <div class="custom-inst-title">
+            <b>Student Affordability Plan</b>
+            <span class="sub">Specify custom installment amounts and due dates</span>
+          </div>
+          <button type="button" class="btn-balance" id="btnAutoBalance" title="Distribute remaining fee equally">⚡ Auto-Balance</button>
+        </div>
+        <div id="customInstallmentList" class="custom-inst-list">
+          <!-- Populated by JavaScript -->
+        </div>
+        <div class="custom-inst-footer">
+          <button type="button" class="btn-add-inst" id="btnAddInstallment">+ Add Installment</button>
+          <div class="custom-inst-tally">
+            <span class="muted">Allocated:</span>
+            <b id="tallyAllocated">Rs. 0</b> / <span id="tallyTarget">Rs. 12,000</span>
+            <span id="tallyStatusBadge" class="badge badge-green">Balanced</span>
+          </div>
+        </div>
+      </div>
+
       <div class="form-group">
         <label>Admission Date</label>
         <input type="date" name="admission_date" value="{{ today }}">
@@ -179,7 +207,211 @@
     courseSelect.addEventListener('change', function() {
       const opt = this.options[this.selectedIndex];
       const fee = opt.getAttribute('data-fee');
-      if (fee) totalFeeInput.value = fee;
+      if (fee) {
+        totalFeeInput.value = fee;
+        if (typeof updateTally === 'function') updateTally();
+      }
+    });
+  }
+
+  // Custom Installment Planner Logic
+  const instSelect = document.getElementById('installmentCountSelect');
+  const instPlanInput = document.getElementById('installmentPlanInput');
+  const customBox = document.getElementById('customInstallmentsBox');
+  const customList = document.getElementById('customInstallmentList');
+  const btnAddInst = document.getElementById('btnAddInstallment');
+  const btnAutoBalance = document.getElementById('btnAutoBalance');
+  const tallyAllocated = document.getElementById('tallyAllocated');
+  const tallyTarget = document.getElementById('tallyTarget');
+  const tallyBadge = document.getElementById('tallyStatusBadge');
+  const admDateInput = document.querySelector('input[name="admission_date"]');
+
+  function getTargetFee() {
+    return parseFloat(totalFeeInput ? totalFeeInput.value : 0) || 0;
+  }
+
+  function getBaseDate() {
+    const dVal = admDateInput ? admDateInput.value : '';
+    if (dVal) {
+      const parts = dVal.split('-');
+      if (parts.length === 3) return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+    return new Date();
+  }
+
+  function formatIsoDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function calculateDefaultDueDate(index) {
+    const base = getBaseDate();
+    if (index === 1) {
+      base.setDate(base.getDate() + 15);
+    } else {
+      base.setDate(base.getDate() + 30 * (index - 1));
+    }
+    return formatIsoDate(base);
+  }
+
+  function updateTally() {
+    const target = getTargetFee();
+    let sum = 0;
+    if (customList) {
+      const rows = customList.querySelectorAll('.custom-inst-row');
+      rows.forEach(r => {
+        const amtInp = r.querySelector('.custom-inst-amt');
+        sum += parseFloat(amtInp ? amtInp.value : 0) || 0;
+      });
+    }
+
+    if (tallyAllocated) tallyAllocated.textContent = 'Rs. ' + Math.round(sum).toLocaleString();
+    if (tallyTarget) tallyTarget.textContent = 'Rs. ' + Math.round(target).toLocaleString();
+
+    if (tallyBadge) {
+      const diff = Math.round(target - sum);
+      if (diff === 0) {
+        tallyBadge.className = 'badge badge-green';
+        tallyBadge.textContent = 'Balanced';
+      } else if (diff > 0) {
+        tallyBadge.className = 'badge badge-orange';
+        tallyBadge.textContent = `Rs. ${diff.toLocaleString()} remaining`;
+      } else {
+        tallyBadge.className = 'badge badge-red';
+        tallyBadge.textContent = `Rs. ${Math.abs(diff).toLocaleString()} excess`;
+      }
+    }
+  }
+
+  function renumberRows() {
+    if (!customList) return;
+    const rows = customList.querySelectorAll('.custom-inst-row');
+    rows.forEach((r, idx) => {
+      const num = idx + 1;
+      const badge = r.querySelector('.inst-badge');
+      if (badge) badge.textContent = 'Inst ' + num;
+      const delBtn = r.querySelector('.inst-del-btn');
+      if (delBtn) delBtn.style.display = rows.length > 1 ? 'inline-flex' : 'none';
+    });
+  }
+
+  function addCustomRow(amount, dateVal) {
+    if (!customList) return;
+    const count = customList.querySelectorAll('.custom-inst-row').length + 1;
+    const dVal = dateVal || calculateDefaultDueDate(count);
+    const amt = (amount !== undefined && amount !== null) ? amount : '';
+
+    const row = document.createElement('div');
+    row.className = 'custom-inst-row';
+    row.innerHTML = `
+      <div class="inst-badge">Inst ${count}</div>
+      <div class="inst-amt-field">
+        <label>Amount (PKR)</label>
+        <input type="number" name="custom_installment_amount" class="custom-inst-amt" placeholder="e.g. 4000" min="1" step="50" value="${amt}" required>
+      </div>
+      <div class="inst-date-field">
+        <label>Due Date</label>
+        <input type="date" name="custom_installment_date" class="custom-inst-date" value="${dVal}" required>
+      </div>
+      <button type="button" class="inst-del-btn" title="Remove Installment">✕</button>
+    `;
+
+    const amtInp = row.querySelector('.custom-inst-amt');
+    amtInp.addEventListener('input', updateTally);
+
+    const delBtn = row.querySelector('.inst-del-btn');
+    delBtn.addEventListener('click', function() {
+      row.remove();
+      renumberRows();
+      updateTally();
+    });
+
+    customList.appendChild(row);
+    renumberRows();
+    updateTally();
+    return row;
+  }
+
+  function autoBalanceInstallments() {
+    if (!customList) return;
+    const target = getTargetFee();
+    const rows = customList.querySelectorAll('.custom-inst-row');
+    if (rows.length === 0) return;
+
+    const perRow = Math.floor(target / rows.length);
+    let remaining = target;
+
+    rows.forEach((r, idx) => {
+      const amtInp = r.querySelector('.custom-inst-amt');
+      if (idx === rows.length - 1) {
+        amtInp.value = Math.max(remaining, 0);
+      } else {
+        amtInp.value = perRow;
+        remaining -= perRow;
+      }
+    });
+    updateTally();
+  }
+
+  function enableCustomPlan() {
+    if (instSelect) {
+      instSelect.value = 'custom';
+      onInstPlanChange();
+    }
+  }
+
+  function onInstPlanChange() {
+    const val = instSelect ? instSelect.value : '2';
+    if (val === 'custom') {
+      if (instPlanInput) instPlanInput.value = 'custom';
+      if (customBox) customBox.style.display = 'block';
+      if (customList && customList.children.length === 0) {
+        const target = getTargetFee();
+        const half = Math.floor(target / 2);
+        addCustomRow(half, calculateDefaultDueDate(1));
+        addCustomRow(target - half, calculateDefaultDueDate(2));
+      }
+    } else {
+      if (instPlanInput) instPlanInput.value = 'equal';
+      if (customBox) customBox.style.display = 'none';
+    }
+  }
+
+  if (instSelect) {
+    instSelect.addEventListener('change', onInstPlanChange);
+  }
+  if (btnAddInst) {
+    btnAddInst.addEventListener('click', function() {
+      const target = getTargetFee();
+      let sum = 0;
+      if (customList) {
+        customList.querySelectorAll('.custom-inst-amt').forEach(inp => {
+          sum += parseFloat(inp.value || 0) || 0;
+        });
+      }
+      const rem = Math.max(target - sum, 0);
+      addCustomRow(rem > 0 ? rem : '');
+    });
+  }
+  if (btnAutoBalance) {
+    btnAutoBalance.addEventListener('click', autoBalanceInstallments);
+  }
+  if (totalFeeInput) {
+    totalFeeInput.addEventListener('input', updateTally);
+  }
+  if (admDateInput) {
+    admDateInput.addEventListener('change', function() {
+      if (!customList) return;
+      const rows = customList.querySelectorAll('.custom-inst-row');
+      rows.forEach((r, idx) => {
+        const dtInp = r.querySelector('.custom-inst-date');
+        // only auto-update if empty or user just changed admission date
+        if (dtInp && !dtInp.value) {
+          dtInp.value = calculateDefaultDueDate(idx + 1);
+        }
+      });
     });
   }
 

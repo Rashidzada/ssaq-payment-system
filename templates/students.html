@@ -63,34 +63,47 @@
   </div>
 
   <div class="panel">
-    <div class="panel-header">
-      <h2>All Students ({{ students|length }})</h2>
-      <div class="pdf-export-toolbar">
-        <select id="pdfCourseFilter" class="pdf-course-select" title="Filter Student PDF by Course">
-          <option value="">All Courses</option>
-          {% for c in courses %}
-            <option value="{{ c.id }}">{{ c.name }}</option>
-          {% endfor %}
-        </select>
-        <div class="pdf-btn-group">
-          <button type="button" class="btn-pdf-download" onclick="downloadStudentsPdf(1)" title="Download PDF with Fees, Paid Amounts & Remaining Dues">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-            <span>With Payment</span>
-          </button>
-          <button type="button" class="btn-pdf-download btn-pdf-nopay" onclick="downloadStudentsPdf(0)" title="Download Student Nominal / Attendance Roll (Hide Prices & Fees)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="8.5" cy="7" r="4"></circle>
-              <polyline points="17 11 19 13 23 9"></polyline>
-            </svg>
-            <span>Without Payment (No Prices)</span>
-          </button>
+    <div class="panel-header panel-header-students">
+      <div class="panel-header-top">
+        <h2>All Students (<span id="studentsDisplayCount">{{ students|length }}</span>)</h2>
+        <div class="student-search-box">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="studentSearchInput" value="{{ search_query or '' }}" placeholder="Search by name, #ID, father, phone..." autocomplete="off">
+          <button type="button" id="studentSearchClear" class="search-clear-btn" title="Clear search" style="{% if not search_query %}display:none;{% endif %}">✕</button>
+        </div>
+      </div>
+      <div class="panel-header-bottom">
+        <div class="pdf-export-toolbar">
+          <div class="filter-label">Filter Course / PDF:</div>
+          <select id="pdfCourseFilter" class="pdf-course-select" title="Filter Student List and PDF by Course">
+            <option value="">All Courses</option>
+            {% for c in courses %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="pdf-btn-group">
+            <button type="button" class="btn-pdf-download" onclick="downloadStudentsPdf(1)" title="Download PDF with Fees, Paid Amounts & Remaining Dues">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+              <span>With Payment</span>
+            </button>
+            <button type="button" class="btn-pdf-download btn-pdf-nopay" onclick="downloadStudentsPdf(0)" title="Download Student Nominal / Attendance Roll (Hide Prices & Fees)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="8.5" cy="7" r="4"></circle>
+                <polyline points="17 11 19 13 23 9"></polyline>
+              </svg>
+              <span>Without Payment (No Prices)</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -106,9 +119,9 @@
             <th></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="studentsTableBody">
           {% for s in students %}
-          <tr>
+          <tr class="student-data-row" data-name="{{ (s.name or '')|lower }}" data-candidate="{{ (s.candidate_no or '')|lower }}" data-father="{{ (s.father_name or '')|lower }}" data-phone="{{ (s.phone or '')|lower }}" data-course-id="{{ s.course_id or '' }}" data-course-name="{{ (s.course_name or '')|lower }}">
             <td>
               <b>{{ s.name }}</b>
               <div class="muted small">#{{ s.candidate_no or '-' }} | {{ s.teacher_name or '-' }}</div>
@@ -136,10 +149,15 @@
           {% else %}
           <tr><td colspan="6" class="muted">No students enrolled yet.</td></tr>
           {% endfor %}
+          <tr id="noSearchResultRow" style="display:none;">
+            <td colspan="6" class="muted" style="padding: 28px 16px; text-align: center; font-size: 13.5px;">
+              🔍 No students found matching your search.
+            </td>
+          </tr>
         </tbody>
         {% if students %}
         <tfoot>
-          <tr class="table-total-row">
+          <tr id="tableFooterRow" class="table-total-row">
             <td colspan="2"><b>Total ({{ students|length }} Students)</b></td>
             <td><b class="money-val">Rs. {{ "%.0f"|format(students_totals.total_payable) }}</b></td>
             <td><b class="money-val text-green">Rs. {{ "%.0f"|format(students_totals.total_paid) }}</b></td>
@@ -165,12 +183,95 @@
     });
   }
 
+  // Real-time Search and Course Filter Logic
+  const searchInput = document.getElementById('studentSearchInput');
+  const searchClear = document.getElementById('studentSearchClear');
+  const courseFilter = document.getElementById('pdfCourseFilter');
+  const studentRows = document.querySelectorAll('.student-data-row');
+  const countEl = document.getElementById('studentsDisplayCount');
+  const noResultRow = document.getElementById('noSearchResultRow');
+  const tableFooter = document.getElementById('tableFooterRow');
+  const totalStudents = studentRows.length;
+
+  function filterStudentsTable() {
+    const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
+    const selectedCourseId = courseFilter ? courseFilter.value : '';
+
+    if (searchClear) {
+      searchClear.style.display = q ? 'block' : 'none';
+    }
+
+    let matchCount = 0;
+    studentRows.forEach(row => {
+      const name = row.getAttribute('data-name') || '';
+      const candidate = row.getAttribute('data-candidate') || '';
+      const father = row.getAttribute('data-father') || '';
+      const phone = row.getAttribute('data-phone') || '';
+      const courseId = row.getAttribute('data-course-id') || '';
+      const courseName = row.getAttribute('data-course-name') || '';
+
+      const matchesQuery = !q || (
+        name.includes(q) ||
+        candidate.includes(q) ||
+        father.includes(q) ||
+        phone.includes(q) ||
+        courseName.includes(q)
+      );
+
+      const matchesCourse = !selectedCourseId || (courseId === selectedCourseId);
+
+      if (matchesQuery && matchesCourse) {
+        row.style.display = '';
+        matchCount++;
+      } else {
+        row.style.display = 'none';
+      }
+    });
+
+    if (countEl) {
+      if (q || selectedCourseId) {
+        countEl.textContent = `${matchCount} of ${totalStudents}`;
+      } else {
+        countEl.textContent = totalStudents;
+      }
+    }
+
+    if (noResultRow) {
+      noResultRow.style.display = (matchCount === 0 && totalStudents > 0) ? '' : 'none';
+    }
+    if (tableFooter) {
+      tableFooter.style.display = (q || selectedCourseId) && matchCount !== totalStudents ? 'none' : '';
+    }
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', filterStudentsTable);
+  }
+  if (searchClear) {
+    searchClear.addEventListener('click', function() {
+      searchInput.value = '';
+      searchInput.focus();
+      filterStudentsTable();
+    });
+  }
+  if (courseFilter) {
+    courseFilter.addEventListener('change', filterStudentsTable);
+  }
+
+  // Initial filter run if searchInput already has text
+  if (searchInput && searchInput.value) {
+    filterStudentsTable();
+  }
+
   function downloadStudentsPdf(showAmounts) {
-    const select = document.getElementById('pdfCourseFilter');
-    const courseId = select ? select.value : '';
+    const courseId = courseFilter ? courseFilter.value : '';
+    const q = searchInput ? searchInput.value.trim() : '';
     let url = "{{ url_for('students_pdf') }}?show_amounts=" + showAmounts;
     if (courseId) {
       url += "&course_id=" + encodeURIComponent(courseId);
+    }
+    if (q) {
+      url += "&q=" + encodeURIComponent(q);
     }
     window.location.href = url;
   }

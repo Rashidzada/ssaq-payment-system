@@ -775,6 +775,15 @@ def students():
         flash("Student enrolled and fee schedule generated.", "success")
         return redirect(url_for("view_student", student_id=student_id))
 
+    search_q = request.args.get("q", "").strip()
+    where_clauses = []
+    params = []
+    if search_q:
+        where_clauses.append("(s.name LIKE ? OR s.father_name LIKE ? OR s.candidate_no LIKE ? OR s.phone LIKE ?)")
+        s_param = f"%{search_q}%"
+        params.extend([s_param, s_param, s_param, s_param])
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
     rows = db.execute(
         f"""SELECT s.*, c.name AS course_name, t.name AS teacher_name,
                   (SELECT COUNT(*) FROM payments p
@@ -788,7 +797,9 @@ def students():
            FROM students s
            LEFT JOIN courses c ON c.id = s.course_id
            LEFT JOIN teachers t ON t.id = s.teacher_id
-           ORDER BY s.created_at DESC"""
+           {where_sql}
+           ORDER BY s.created_at DESC""",
+        params
     ).fetchall()
 
     students_totals = {
@@ -805,6 +816,7 @@ def students():
         "students.html", students=rows, students_totals=students_totals,
         courses=course_rows, teachers=teacher_rows,
         today=date.today().isoformat(), dev=dev_context(),
+        search_query=search_q,
     )
 
 
@@ -814,6 +826,7 @@ def students_pdf():
     from pdf_generator import build_students_list_pdf
     course_id = request.args.get("course_id", type=int)
     show_amounts = request.args.get("show_amounts", default=1, type=int) == 1
+    search_q = request.args.get("q", "").strip()
 
     db = get_db()
 
@@ -826,6 +839,11 @@ def students_pdf():
             selected_course_name = c_row["name"]
             where_clauses.append("s.course_id = ?")
             params.append(course_id)
+
+    if search_q:
+        where_clauses.append("(s.name LIKE ? OR s.father_name LIKE ? OR s.candidate_no LIKE ? OR s.phone LIKE ?)")
+        s_param = f"%{search_q}%"
+        params.extend([s_param, s_param, s_param, s_param])
 
     where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
@@ -861,14 +879,19 @@ def students_pdf():
         "dues_amount": sum(float(s["dues_amount"] or 0) for s in rows),
     }
 
+    display_course_label = selected_course_name
+    if search_q:
+        display_course_label = f"{selected_course_name} (Search: '{search_q}')" if selected_course_name else f"Search: '{search_q}'"
+
     buffer = build_students_list_pdf(
         rows, totals, dev_context(), COLLEGE_NAME,
-        course_name=selected_course_name, show_amounts=show_amounts
+        course_name=display_course_label, show_amounts=show_amounts
     )
     today_str = date.today().strftime("%Y%m%d")
     course_slug = safe_filename_part(selected_course_name) if selected_course_name else "All_Courses"
+    search_slug = f"_Search_{safe_filename_part(search_q)}" if search_q else ""
     mode_slug = "Fee_Report" if show_amounts else "Nominal_Roll_No_Prices"
-    filename = f"Students_{course_slug}_{mode_slug}_{today_str}.pdf"
+    filename = f"Students_{course_slug}{search_slug}_{mode_slug}_{today_str}.pdf"
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
 
 

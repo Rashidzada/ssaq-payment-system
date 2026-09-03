@@ -181,6 +181,12 @@ def _get_row_value(row, key, default=""):
         return default
 
 
+def _xml_esc(val):
+    if val is None:
+        return ""
+    return html.escape(str(val), quote=False)
+
+
 def build_clearance_pdf(student, payments, total_payable, total_paid, total_due, dev, college_name):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -396,10 +402,10 @@ def build_students_list_pdf(students, totals, dev, college_name, course_name=Non
 
     story = []
     # 1. Academy Name on top
-    c_name = html.escape(college_name or "The Smart Skills Academy Qalagay").upper()
+    c_name = _xml_esc(college_name or "The Smart Skills Academy Qalagay").upper()
     story.append(Paragraph(c_name, title_style))
 
-    course_suffix = f" — {html.escape(course_name).upper()}" if course_name else ""
+    course_suffix = f" — {_xml_esc(course_name).upper()}" if course_name else ""
     if show_amounts:
         sub_text = f"STUDENTS REGISTER &amp; FEE PAYMENT STATUS REPORT{course_suffix}"
     else:
@@ -407,7 +413,7 @@ def build_students_list_pdf(students, totals, dev, college_name, course_name=Non
     story.append(Paragraph(sub_text, subtitle_style))
 
     gen_time = datetime.now().strftime("%d-%b-%Y %I:%M %p")
-    admin_display = html.escape(dev.get("admin_display") or "Rashid Zada (0347-0983567)")
+    admin_display = _xml_esc(dev.get("admin_display") or "Rashid Zada (0347-0983567)")
     doc_type_label = "Official Student Fee Ledger" if show_amounts else "Official Class & Attendance Roll"
     story.append(Paragraph(
         f"Admin Contact: {admin_display} &nbsp;|&nbsp; Report Date: {gen_time} &nbsp;|&nbsp; {doc_type_label}",
@@ -435,7 +441,7 @@ def build_students_list_pdf(students, totals, dev, college_name, course_name=Non
         ]
         kpi_col_widths = [55*mm, 55*mm, 55*mm, 55*mm, 57*mm]
     else:
-        scope_text = html.escape(course_name) if course_name else "All Registered Courses"
+        scope_text = _xml_esc(course_name) if course_name else "All Registered Courses"
         kpi_data = [
             [
                 Paragraph(f"<b>Total Students</b><br/><font size=\"10\" color=\"#0f172a\"><b>{student_count} Enrolled</b></font>", kpi_pstyle()),
@@ -474,12 +480,12 @@ def build_students_list_pdf(students, totals, dev, college_name, course_name=Non
             table_data.append([empty_p] + [Paragraph("", td_c) for _ in range(len(headers) - 1)])
         else:
             for idx, s in enumerate(students, 1):
-                c_no = html.escape(str(_get_row_value(s, "candidate_no") or "-"))
-                s_name = f"<b>{html.escape(str(_get_row_value(s, 'name', '-')))}</b>"
-                f_name = html.escape(str(_get_row_value(s, "father_name") or "-"))
-                c_name = html.escape(str(_get_row_value(s, "course_name") or "Unassigned"))
+                c_no = _xml_esc(str(_get_row_value(s, "candidate_no") or "-"))
+                s_name = f"<b>{_xml_esc(str(_get_row_value(s, 'name', '-')))}</b>"
+                f_name = _xml_esc(str(_get_row_value(s, "father_name") or "-"))
+                c_name = _xml_esc(str(_get_row_value(s, "course_name") or "Unassigned"))
 
-                adm_date = html.escape(str(_get_row_value(s, "admission_date") or "-"))
+                adm_date = _xml_esc(str(_get_row_value(s, "admission_date") or "-"))
                 last_paid = _get_row_value(s, "last_paid_date")
                 next_due = _get_row_value(s, "next_due_date")
 
@@ -489,9 +495,9 @@ def build_students_list_pdf(students, totals, dev, college_name, course_name=Non
 
                 date_str = adm_date
                 if dues > 0 and next_due:
-                    date_str = f"{adm_date}<br/><font size=\"6\" color=\"#b91c1c\">Due: {html.escape(str(next_due))}</font>"
+                    date_str = f"{adm_date}<br/><font size=\"6\" color=\"#b91c1c\">Due: {_xml_esc(str(next_due))}</font>"
                 elif dues <= 0 and last_paid:
-                    date_str = f"{adm_date}<br/><font size=\"6\" color=\"#15803d\">Paid: {html.escape(str(last_paid))}</font>"
+                    date_str = f"{adm_date}<br/><font size=\"6\" color=\"#15803d\">Paid: {_xml_esc(str(last_paid))}</font>"
 
                 pending_inst = _get_row_value(s, "pending_installments", 0)
                 paid_inst = _get_row_value(s, "paid_installments", 0)
@@ -550,13 +556,13 @@ def build_students_list_pdf(students, totals, dev, college_name, course_name=Non
             table_data.append([empty_p] + [Paragraph("", td_c) for _ in range(len(headers) - 1)])
         else:
             for idx, s in enumerate(students, 1):
-                c_no = html.escape(str(_get_row_value(s, "candidate_no") or "-"))
-                s_name = f"<b>{html.escape(str(_get_row_value(s, 'name', '-')))}</b>"
-                f_name = html.escape(str(_get_row_value(s, "father_name") or "-"))
-                phone = html.escape(str(_get_row_value(s, "phone") or "-"))
-                c_name = html.escape(str(_get_row_value(s, "course_name") or "Unassigned"))
-                t_name = html.escape(str(_get_row_value(s, "teacher_name") or "-"))
-                adm_date = html.escape(str(_get_row_value(s, "admission_date") or "-"))
+                c_no = _xml_esc(str(_get_row_value(s, "candidate_no") or "-"))
+                s_name = f"<b>{_xml_esc(str(_get_row_value(s, 'name', '-')))}</b>"
+                f_name = _xml_esc(str(_get_row_value(s, "father_name") or "-"))
+                phone = _xml_esc(str(_get_row_value(s, "phone") or "-"))
+                c_name = _xml_esc(str(_get_row_value(s, "course_name") or "Unassigned"))
+                t_name = _xml_esc(str(_get_row_value(s, "teacher_name") or "-"))
+                adm_date = _xml_esc(str(_get_row_value(s, "admission_date") or "-"))
 
                 table_data.append([
                     Paragraph(str(idx), td_c),

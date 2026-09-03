@@ -17,18 +17,35 @@
 </div>
 
 <div class="voucher-actions no-print">
-  <button class="btn-primary" onclick="window.print()">🖨️ Print (2 Copies)</button>
-  <a class="btn-primary" href="{{ url_for('voucher_pdf', payment_id=payment.id) }}">⬇️ Download PDF</a>
+  <button class="btn-primary" onclick="window.print()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+    <span>Print (2 Copies)</span>
+  </button>
+  <a class="btn-primary" href="{{ url_for('voucher_pdf', payment_id=payment.id) }}">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+    <span>Download PDF</span>
+  </a>
   {% if wa_number %}
-  <a class="btn-whatsapp" target="_blank" href="https://wa.me/{{ wa_number }}?text={{ wa_message|urlencode }}">💬 Send to Student's WhatsApp</a>
+  <a class="btn-whatsapp" target="_blank" href="https://wa.me/{{ wa_number }}?text={{ wa_message|urlencode }}">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.074-2.127-.52-1.832-.759-3.003-2.614-3.094-2.735-.09-.12-1.74-2.316-1.74-4.416 0-2.101 1.107-3.136 1.5-3.535.143-.144.382-.213.573-.213.192 0 .383.002.55.011.18.01.42-.069.658.503.24.577.818 2.001.89 2.146.072.145.12.314.024.505-.095.191-.144.31-.286.48-.144.17-.303.38-.432.51-.144.144-.294.3-.126.589.168.289.746 1.233 1.602 1.996 1.101.982 2.03 1.286 2.318 1.43.288.144.456.12.624-.072.168-.192.72-.84.912-1.128.192-.288.384-.24.648-.144.264.096 1.674.789 1.962.933.288.144.48.216.552.336.072.12.072.719-.072 1.124z"/></svg>
+    <span>Send to WhatsApp</span>
+  </a>
   {% else %}
   <span class="muted small">Add student's phone number to enable WhatsApp share.</span>
   {% endif %}
   {% if remaining_amount > 0 %}
-  <form method="POST" action="{{ url_for('mark_paid', payment_id=payment.id) }}" class="inline-pay-form">
+  <form method="POST" action="{{ url_for('mark_paid', payment_id=payment.id) }}" class="inline-pay-form voucher-pay-box">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="number" name="paid_amount" min="1" max="{{ '%.0f'|format(remaining_amount) }}" step="1" value="{{ '%.0f'|format(remaining_amount) }}">
-    <button type="submit" class="btn-success">Record Payment</button>
+    <div class="pay-input-wrap">
+      <span class="currency-prefix">Rs.</span>
+      <input type="number" name="paid_amount" class="pay-amount-input" min="1" max="{{ '%.0f'|format(remaining_amount) }}" step="1" value="{{ '%.0f'|format(remaining_amount) }}" placeholder="Amount" title="Enter payment amount to record">
+    </div>
+    <button type="submit" class="btn-success">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      <span>Record Payment</span>
+    </button>
   </form>
   {% endif %}
   <a class="btn-secondary" href="{{ url_for('view_student', student_id=student.id) }}">← Back to Student</a>

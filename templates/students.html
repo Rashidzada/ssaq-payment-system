@@ -63,7 +63,37 @@
   </div>
 
   <div class="panel">
-    <div class="panel-header"><h2>All Students ({{ students|length }})</h2></div>
+    <div class="panel-header">
+      <h2>All Students ({{ students|length }})</h2>
+      <div class="pdf-export-toolbar">
+        <select id="pdfCourseFilter" class="pdf-course-select" title="Filter Student PDF by Course">
+          <option value="">All Courses</option>
+          {% for c in courses %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="pdf-btn-group">
+          <button type="button" class="btn-pdf-download" onclick="downloadStudentsPdf(1)" title="Download PDF with Fees, Paid Amounts & Remaining Dues">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <span>With Payment</span>
+          </button>
+          <button type="button" class="btn-pdf-download btn-pdf-nopay" onclick="downloadStudentsPdf(0)" title="Download Student Nominal / Attendance Roll (Hide Prices & Fees)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="8.5" cy="7" r="4"></circle>
+              <polyline points="17 11 19 13 23 9"></polyline>
+            </svg>
+            <span>Without Payment (No Prices)</span>
+          </button>
+        </div>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead>
@@ -133,6 +163,16 @@
       const fee = opt.getAttribute('data-fee');
       if (fee) totalFeeInput.value = fee;
     });
+  }
+
+  function downloadStudentsPdf(showAmounts) {
+    const select = document.getElementById('pdfCourseFilter');
+    const courseId = select ? select.value : '';
+    let url = "{{ url_for('students_pdf') }}?show_amounts=" + showAmounts;
+    if (courseId) {
+      url += "&course_id=" + encodeURIComponent(courseId);
+    }
+    window.location.href = url;
   }
 </script>
 {% endblock %}

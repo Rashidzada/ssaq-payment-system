@@ -808,6 +808,70 @@ def students():
     )
 
 
+@app.route("/students/pdf")
+@login_required
+def students_pdf():
+    from pdf_generator import build_students_list_pdf
+    course_id = request.args.get("course_id", type=int)
+    show_amounts = request.args.get("show_amounts", default=1, type=int) == 1
+
+    db = get_db()
+
+    where_clauses = []
+    params = []
+    selected_course_name = None
+    if course_id:
+        c_row = db.execute("SELECT name FROM courses WHERE id = ?", (course_id,)).fetchone()
+        if c_row:
+            selected_course_name = c_row["name"]
+            where_clauses.append("s.course_id = ?")
+            params.append(course_id)
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    rows = db.execute(
+        f"""SELECT s.*, c.name AS course_name, c.duration AS course_duration, t.name AS teacher_name,
+                  (SELECT COUNT(*) FROM payments p
+                   WHERE p.student_id = s.id AND {PAYMENT_REMAINING_P_SQL} > 0) AS pending_installments,
+                  (SELECT COUNT(*) FROM payments p
+                   WHERE p.student_id = s.id AND p.paid = 1) AS paid_installments,
+                  (SELECT COALESCE(SUM(p.paid_amount), 0) FROM payments p
+                   WHERE p.student_id = s.id) AS total_paid,
+                  (SELECT COALESCE(SUM({PAYMENT_TOTAL_P_SQL}), 0) FROM payments p
+                   WHERE p.student_id = s.id) AS total_payable,
+                  (SELECT COALESCE(SUM({PAYMENT_REMAINING_P_SQL}), 0) FROM payments p
+                   WHERE p.student_id = s.id) AS dues_amount,
+                  (SELECT MAX(p.paid_date) FROM payments p
+                   WHERE p.student_id = s.id AND p.paid = 1) AS last_paid_date,
+                  (SELECT MIN(p.due_date) FROM payments p
+                   WHERE p.student_id = s.id AND {PAYMENT_REMAINING_P_SQL} > 0) AS next_due_date
+           FROM students s
+           LEFT JOIN courses c ON c.id = s.course_id
+           LEFT JOIN teachers t ON t.id = s.teacher_id
+           {where_sql}
+           ORDER BY s.id ASC""",
+        params
+    ).fetchall()
+
+    totals = {
+        "student_count": len(rows),
+        "total_fee": sum(float(s["total_fee"] or 0) for s in rows),
+        "total_payable": sum(float(s["total_payable"] or 0) for s in rows),
+        "total_paid": sum(float(s["total_paid"] or 0) for s in rows),
+        "dues_amount": sum(float(s["dues_amount"] or 0) for s in rows),
+    }
+
+    buffer = build_students_list_pdf(
+        rows, totals, dev_context(), COLLEGE_NAME,
+        course_name=selected_course_name, show_amounts=show_amounts
+    )
+    today_str = date.today().strftime("%Y%m%d")
+    course_slug = safe_filename_part(selected_course_name) if selected_course_name else "All_Courses"
+    mode_slug = "Fee_Report" if show_amounts else "Nominal_Roll_No_Prices"
+    filename = f"Students_{course_slug}_{mode_slug}_{today_str}.pdf"
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
+
 @app.route("/students/<int:student_id>")
 @login_required
 def view_student(student_id):
